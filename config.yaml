@@ -1,0 +1,30 @@
+project:
+  seed: 7
+  data_dir: real_processed_265
+  raw_input: ../yellow_tripdata_2024-01.csv
+
+preprocess:
+  month: "2024-01"
+  top_k: 20
+  all_zones: true
+  chunksize: 400000
+  train_frac: 0.70
+  output_dir: real_processed_265
+
+forecast:
+  window: 48
+  horizon: 5
+  hidden: 64
+  epochs: 50
+  batch_size: 128
+  learning_rate: 0.001
+  patience: 8
+  checkpoint: multihorizon_stgnn_checkpoint_265.pt
+
+simulator:
+  module: simulator265
+  fleet_sizes: "500,1000,1500,2000"
+  horizon: 288
+  seeds: "0,1,2"
+  forecast_horizon: 3
+  step_minutes: 5

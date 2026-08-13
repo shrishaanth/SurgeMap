@@ -192,9 +192,6 @@ Trained checkpoint (`multihorizon_265_clipped.pt`): 40 epochs, hidden=64, batch=
 
 ---
 
-## License
-
-MIT
 
 ---
 

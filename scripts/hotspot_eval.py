@@ -102,12 +102,16 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
     """
     if not os.path.exists(checkpoint_path):
         raise FileNotFoundError(f"checkpoint not found: {checkpoint_path}")
-    for required in ("features.npy", "A_out.npy", "A_in.npy", "metadata.json"):
+    for required in ("A_out.npy", "A_in.npy", "metadata.json"):
         if not os.path.exists(os.path.join(data_dir, required)):
             raise FileNotFoundError(f"required input missing in {data_dir}: {required}")
     features_path = os.path.join(data_dir, "features_clipped.npy")
     if not os.path.exists(features_path):
         features_path = os.path.join(data_dir, "features.npy")
+    if not os.path.exists(features_path):
+        raise FileNotFoundError(
+            f"required input missing in {data_dir}: features_clipped.npy or features.npy"
+        )
     features = np.load(features_path)
     a_out = np.load(os.path.join(data_dir, "A_out.npy"))
     a_in = np.load(os.path.join(data_dir, "A_in.npy"))

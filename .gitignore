@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+*.egg-info/
+
+# Raw taxi trip data — large (100s of MB), regenerable from NYC TLC, kept local-only
+/data/

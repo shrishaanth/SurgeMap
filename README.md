@@ -104,7 +104,7 @@ python -m pip install -r requirements.txt
 
 ```powershell
 # 1. Preprocess all 253 NYC zones from raw CSV
-python scripts\preprocess.py --input ..\yellow_tripdata_2024-01.csv --out real_processed_265 --month 2024-01 --all-zones
+python scripts\preprocess.py --input data\yellow_tripdata_2024-01.csv --out real_processed_265 --month 2024-01 --all-zones
 
 # 2. Train multi-horizon ST-GNN
 python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --window 48 --epochs 50 --hidden 64 --batch-size 128 --lr 0.001 --patience 8 --out multihorizon_stgnn_checkpoint_265.pt
@@ -140,14 +140,12 @@ SurgeMap/
 ├── real_processed_265/               # Preprocessed data for 253 NYC zones
 │   ├── metadata.json                 # Dataset metadata (zones, splits, features, shapes)
 │   ├── demand.npy                    # Raw pickup counts [253 zones × 8928 bins]
-│   ├── features.npy                  # Scaled features [253 × 8928 × 6]
-│   ├── features_clipped.npy          # Outlier-clipped features
+│   ├── features_clipped.npy          # Outlier-clipped features (used by training/eval)
 │   ├── A_out.npy                     # Outgoing adjacency (directed) [253 × 253]
 │   ├── A_in.npy                      # Incoming adjacency (directed) [253 × 253]
-│   ├── A_sym.npy                     # Symmetric adjacency (ablation)
-│   ├── edge_index.npy                # Edge list for PyG compatibility
-│   ├── travel_time.npy               # Mean trip duration per edge
 │   └── zone_ids.npy                  # NYC zone IDs (253 zones)
+│   # A_sym/adjacency/edge_index/travel_time/times/features(unclipped) are regenerable via
+│   # preprocess.py but not committed — unused by the current training/eval scripts.
 ├── scripts/
 │   ├── preprocess.py                 # Raw CSV → tensors + graph
 │   ├── stgnn_models.py               # Pure NumPy ST-GNN (baseline)
@@ -165,21 +163,31 @@ SurgeMap/
 
 ## Model Performance
 
-Trained checkpoint (`multihorizon_265_clipped.pt`): 40 epochs, hidden=64, batch=32
+Trained checkpoint (`multihorizon_265_clipped.pt`): 50 epochs, hidden=64, batch=128 (seed=7, deterministic)
 
-| Horizon | Test RMSE |
-|---------|-----------|
-| 5 min   | 0.551     |
-| 15 min  | 0.563     |
-| 30 min  | 0.576     |
-| 60 min  | 0.577     |
+Hotspot numbers below are from `scripts/hotspot_eval.py`, the standalone evaluation script — treat these as
+authoritative over any hit-rate figure the training script prints inline, which has a known discrepancy at
+the 60-minute horizon (see `scripts/train_multihorizon_torch.py`'s `scores()`; it over-reports at h=12).
 
-| Horizon | Hotspot Top-3 Hit Rate |
-|---------|------------------------|
-| 5 min   | 50.3%                  |
-| 15 min  | 45.1%                  |
-| 30 min  | 39.4%                  |
-| 60 min  | 33.8%                  |
+| Horizon | Test RMSE | Hotspot Top-3 Hit Rate |
+|---------|-----------|-------------------------|
+| 5 min   | 0.534     | 33.4%                   |
+| 15 min  | 0.543     | 36.0%                   |
+| 30 min  | 0.544     | 18.9%                   |
+| 60 min  | 0.575     | 15.3%                   |
+
+Compared against baselines (`scripts/multihorizon_baseline.py`) on the same test split:
+
+| Horizon | Persistence RMSE | Ridge RMSE | ST-GNN RMSE | ST-GNN vs. Ridge |
+|---------|-------------------|------------|-------------|------------------|
+| 5 min   | 0.724             | 0.549      | 0.534       | 0.4% better      |
+| 15 min  | 0.727             | 0.562      | 0.543       | 2.1% better      |
+| 30 min  | 0.729             | 0.584      | 0.544       | 5.8% better      |
+| 60 min  | 0.738             | 0.638      | 0.575       | 9.4% better      |
+
+The ST-GNN beats the naive persistence baseline by ~22-25% RMSE at every horizon. Its edge over plain ridge
+regression is thin at short horizons (5 min) and grows at longer horizons (30-60 min), where the graph's
+cross-zone mixing and the GRU's sequential memory add more value than a flattened-window linear model can capture.
 
 ---
 

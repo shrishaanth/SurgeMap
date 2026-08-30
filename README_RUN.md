@@ -9,7 +9,7 @@ py -3.11 -m venv .venv
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 
-python scripts\preprocess.py --input ..\yellow_tripdata_2024-01.csv --out real_processed_fixed --month 2024-01 --top-k 20
+python scripts\preprocess.py --input data\yellow_tripdata_2024-01.csv --out real_processed_fixed --month 2024-01 --top-k 20
 
 python scripts\train_stgnn_torch.py --data-dir real_processed_fixed --epochs 50 --window 12 --horizon 5 --hidden 64 --batch-size 128 --lr 0.001 --patience 8
 
@@ -32,7 +32,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 
 REM 1. Preprocess ALL 265 zones
-python scripts\preprocess.py --input ..\yellow_tripdata_2024-01.csv --out real_processed_265 --month 2024-01 --all-zones
+python scripts\preprocess.py --input data\yellow_tripdata_2024-01.csv --out real_processed_265 --month 2024-01 --all-zones
 
 REM 2. Build travel-time matrix
 python scripts\build_travel_matrix.py --data-dir real_processed_265

@@ -1,7 +1,7 @@
 project:
   seed: 7
   data_dir: real_processed_265
-  raw_input: ../yellow_tripdata_2024-01.csv
+  raw_input: data/yellow_tripdata_2024-01.csv
 
 preprocess:
   month: "2024-01"

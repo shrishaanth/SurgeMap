@@ -1,9 +1,3 @@
-"""Train a directed ST-GNN for multi-horizon endpoint demand forecasts.
-
-Inputs are produced by ``preprocess.py`` and have shape ``[Z, T, F]``.  Each
-sample is returned as ``[Z, window, F]`` and predicts feature channel zero at
-1, 3, 6, and 12 bins after the end of the input window.
-"""
 from __future__ import annotations
 
 import argparse
@@ -16,7 +10,6 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
-# Reuse the project's directed graph layer rather than duplicating it.
 from train_stgnn_torch import DirectedGraphConv
 
 HORIZONS = (1, 3, 6, 12)
@@ -31,8 +24,6 @@ def seed_all(seed: int) -> None:
 
 
 class MultiHorizonDataset(Dataset):
-    """Chronological samples whose endpoint targets remain within [start, end)."""
-
     def __init__(self, features: np.ndarray, start: int, end: int,
                  window: int = 48, horizons=HORIZONS):
         self.features = torch.as_tensor(features, dtype=torch.float32)
@@ -43,7 +34,6 @@ class MultiHorizonDataset(Dataset):
             raise ValueError("features must have shape [Z,T,F]")
         if self.window < 1 or not self.horizons or min(self.horizons) < 1:
             raise ValueError("window and horizons must be positive")
-        # t is the first forecast endpoint; x is [t-window, t).
         first = max(self.start, self.window)
         last = self.end - max(self.horizons)
         self.times = list(range(first, max(first, last + 1)))
@@ -56,12 +46,10 @@ class MultiHorizonDataset(Dataset):
         t = self.times[index]
         x = self.features[:, t - self.window:t, :]
         y = torch.stack([self.features[:, t + h - 1, 0] for h in self.horizons], dim=-1)
-        return x, y  # [Z,W,F], [Z,Horizons]
+        return x, y
 
 
 class MultiHorizonSTGNN(nn.Module):
-    """Directed spatial layer, shared GRU encoder, and one linear head per horizon."""
-
     def __init__(self, n_features: int, hidden: int = 64, horizons=HORIZONS):
         super().__init__()
         self.horizons = tuple(int(h) for h in horizons)
@@ -70,10 +58,10 @@ class MultiHorizonSTGNN(nn.Module):
         self.heads = nn.ModuleList(nn.Linear(hidden, 1) for _ in self.horizons)
 
     def encode(self, x, a_out, a_in):
-        spatial = self.spatial(x, a_out, a_in)  # [B,Z,W,H]
+        spatial = self.spatial(x, a_out, a_in)
         b, z, w, hidden = spatial.shape
         encoded, _ = self.temporal(spatial.reshape(b * z, w, hidden))
-        return encoded[:, -1, :].reshape(b, z, hidden)  # [B,Z,H]
+        return encoded[:, -1, :].reshape(b, z, hidden)
 
     def forward(self, x, a_out, a_in):
         encoded = self.encode(x, a_out, a_in)
@@ -103,7 +91,6 @@ def run_epoch(model, loader, a_out, a_in, device, optimizer=None):
 
 
 def scores(pred, target):
-    """Per-horizon errors and ranking metrics over samples and zones."""
     result = {}
     for i, horizon in enumerate(HORIZONS):
         p, y = pred[..., i], target[..., i]
@@ -158,7 +145,6 @@ def main():
     seed_all(args.seed)
 
     data_dir = args.data_dir
-    # Prefer the clipped feature tensor when present (sparse-zone z-scores).
     features_path = os.path.join(data_dir, "features_clipped.npy")
     if not os.path.exists(features_path):
         features_path = os.path.join(data_dir, "features.npy")

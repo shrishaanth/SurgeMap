@@ -1,17 +1,3 @@
-"""Score a trained multi-horizon ST-GNN checkpoint on the chronological test
-split and report per-horizon RMSE/MAE plus top-k hotspot ranking metrics.
-
-The sample convention is identical to ``train_multihorizon_torch.py``:
-x = features[:, t-window:t, :] and target[h] = features[:, t+h-1, 0].
-All metrics are computed on the standardized feature-0 channel produced by
-``preprocess.py`` (train-scaled log1p demand z-scores).
-
-Example (from the repository root)::
-
-    python scripts/hotspot_eval.py --checkpoint multihorizon_stgnn_checkpoint.pt \\
-        --data-dir real_processed_fixed --horizons 1,3,6,12 --topk 3,5 \\
-        --out hotspot_metrics.json
-"""
 from __future__ import annotations
 
 import argparse
@@ -28,8 +14,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from train_multihorizon_torch import MultiHorizonDataset, MultiHorizonSTGNN  # noqa: E402
-from train_multihorizon_torch import split_bounds as _split_bounds  # noqa: E402
+from train_multihorizon_torch import MultiHorizonDataset, MultiHorizonSTGNN
+from train_multihorizon_torch import split_bounds as _split_bounds
 
 DEFAULT_HORIZONS = (1, 3, 6, 12)
 _DEFAULT_KS = (3, 5)
@@ -62,12 +48,10 @@ def parse_topk(value: str | Sequence[int] | None) -> tuple[int, ...]:
 
 
 def split_bounds(meta: dict, total: int) -> tuple[tuple[int, int], ...]:
-    """Re-export canonical chronological split bounds with safe fallbacks."""
     return _split_bounds(meta, total)
 
 
 def resolve_data_dir(explicit: str | None, checkpoint_args: dict | None) -> str:
-    """Use the explicit CLI value if given, else a saved data-directory path."""
     if explicit:
         return explicit
     saved = checkpoint_args.get("data_dir") if checkpoint_args else None
@@ -79,7 +63,6 @@ def resolve_data_dir(explicit: str | None, checkpoint_args: dict | None) -> str:
 
 
 def normalize_horizons(from_checkpoint, explicit, head_count: int) -> tuple[int, ...]:
-    """Pick and validate the horizon tuple against the model's head count."""
     if explicit:
         horizons = parse_horizons(explicit)
         if len(horizons) != head_count:
@@ -96,10 +79,6 @@ def normalize_horizons(from_checkpoint, explicit, head_count: int) -> tuple[int,
 
 def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
                     explicit_hidden=None, device=torch.device("cpu")) -> tuple:
-    """Load a multi-horizon checkpoint into a ready-to-evaluate model.
-
-    Returns ``model, features, a_out, a_in, horizons, meta``.
-    """
     if not os.path.exists(checkpoint_path):
         raise FileNotFoundError(f"checkpoint not found: {checkpoint_path}")
     for required in ("A_out.npy", "A_in.npy", "metadata.json"):
@@ -153,7 +132,6 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
 
 def collect_predictions(model, features, a_out, a_in, bounds, window: int, horizons,
                         batch_size: int = 128, device=torch.device("cpu")) -> tuple:
-    """Return ``pred``, ``target``, and anchor indices over the test split."""
     dataset = MultiHorizonDataset(features, *bounds[2], window, horizons)
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     preds, targets, anchors = [], [], []
@@ -174,7 +152,6 @@ def collect_predictions(model, features, a_out, a_in, bounds, window: int, horiz
 
 def ranking_metrics(pred: np.ndarray, target: np.ndarray, horizons: Sequence[int],
                     ks: Sequence[int], zone_ids: Sequence[int] | None = None) -> dict:
-    """Per-horizon RMSE/MAE and top-k precision/recall/ie/any-hit/overlap-k records."""
     if pred.shape != target.shape or pred.ndim != 3:
         raise ValueError("pred and target must both have shape [N,Z,H]")
     horizons = parse_horizons(horizons)
@@ -212,12 +189,11 @@ def ranking_metrics(pred: np.ndarray, target: np.ndarray, horizons: Sequence[int
 
 @torch.no_grad()
 def block_predict(model, x, y, a_out, a_in, device):
-    """Run the model on a batch; returns predictions."""
     return model(x.to(device), a_out, a_in)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", default="multihorizon_stgnn_checkpoint.pt")
     parser.add_argument("--data-dir", default=None)
     parser.add_argument("--window", type=int, default=48)

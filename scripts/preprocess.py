@@ -1,4 +1,3 @@
-"""Chunked, strict NYC TLC preprocessing for regular 5-minute demand tensors."""
 from __future__ import annotations
 
 import argparse
@@ -14,16 +13,16 @@ DROPOFF = "tpep_dropoff_datetime"
 PULOC = "PULocationID"
 DOLOC = "DOLocationID"
 STEP = "5min"
+CLIP_BOUND = 6.0
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description=__doc__)
+    p = argparse.ArgumentParser()
     p.add_argument("--input", required=True)
     p.add_argument("--out", default="real_processed")
     p.add_argument("--month", default="2024-01")
     p.add_argument("--top-k", type=int, default=20)
-    p.add_argument("--all-zones", action="store_true",
-                   help="Use all zones present in the data instead of top-k")
+    p.add_argument("--all-zones", action="store_true")
     p.add_argument("--chunksize", type=int, default=400_000)
     p.add_argument("--train-frac", type=float, default=0.70)
     return p.parse_args()
@@ -54,7 +53,7 @@ def main():
         raise ValueError("--top-k must be positive and --train-frac must be in (0, 1)")
     os.makedirs(a.out, exist_ok=True)
     start = pd.Timestamp(f"{a.month}-01")
-    end = start + pd.offsets.MonthBegin(1)  # exclusive
+    end = start + pd.offsets.MonthBegin(1)
     days = (end - start).days
     T = days * 24 * 60 // 5
     grid = pd.date_range(start=start, periods=T, freq=STEP)
@@ -123,6 +122,7 @@ def main():
     edge_index = np.stack([src, dst]).astype(np.int64)
 
     demand = np.zeros((Z, T), dtype=np.float32)
+    dropoff = np.zeros((Z, T), dtype=np.float32)
     grid_index = {t: i for i, t in enumerate(grid)}
     print(f"[preprocess] pass 2: aggregating complete grid ({T} bins)")
     for chunk in pd.read_csv(a.input, usecols=cols, chunksize=a.chunksize,
@@ -134,17 +134,28 @@ def main():
         bins = pu[ok].dt.floor(STEP)
         ids = pu_id[ok].astype(np.int64).to_numpy()
         keep = np.array([z in zone_set for z in ids], dtype=bool)
-        if not keep.any():
-            continue
-        rows = np.fromiter((zone_index[z] for z in ids[keep]), dtype=np.int64)
-        times = np.fromiter((grid_index[t] for t in bins[keep]), dtype=np.int64)
-        np.add.at(demand, (rows, times), 1)
+        if keep.any():
+            rows = np.fromiter((zone_index[z] for z in ids[keep]), dtype=np.int64)
+            times = np.fromiter((grid_index[t] for t in bins[keep]), dtype=np.int64)
+            np.add.at(demand, (rows, times), 1)
+        do_bins = do[ok].dt.floor(STEP)
+        do_ids = do_id[ok].astype(np.int64).to_numpy()
+        do_keep = np.array([z in zone_set for z in do_ids], dtype=bool)
+        if do_keep.any():
+            do_rows = np.fromiter((zone_index[z] for z in do_ids[do_keep]), dtype=np.int64)
+            do_times = np.fromiter((grid_index[t] for t in do_bins[do_keep]), dtype=np.int64)
+            np.add.at(dropoff, (do_rows, do_times), 1)
 
-    log_demand = np.log1p(demand)
     train_end = max(1, int(T * a.train_frac))
-    mu = log_demand[:, :train_end].mean(axis=1, keepdims=True)
-    sigma = log_demand[:, :train_end].std(axis=1, keepdims=True)
-    normalized = (log_demand - mu) / np.maximum(sigma, 1e-6)
+
+    def log_zscore(counts):
+        log_counts = np.log1p(counts)
+        mu = log_counts[:, :train_end].mean(axis=1, keepdims=True)
+        sigma = log_counts[:, :train_end].std(axis=1, keepdims=True)
+        return (log_counts - mu) / np.maximum(sigma, 1e-6)
+
+    demand_z = log_zscore(demand)
+    dropoff_z = log_zscore(dropoff)
     ts = pd.DatetimeIndex(grid)
     minute_of_day = ts.hour * 60 + ts.minute
     hour_angle = 2 * np.pi * minute_of_day / 1440.0
@@ -152,13 +163,20 @@ def main():
     calendar = np.stack((np.sin(hour_angle), np.cos(hour_angle),
                          np.sin(week_angle), np.cos(week_angle),
                          (ts.dayofweek >= 5).astype(np.float32)), axis=1).astype(np.float32)
-    features = np.empty((Z, T, 6), dtype=np.float32)
-    features[:, :, 0] = normalized
-    features[:, :, 1:] = calendar[None, :, :]
+    features = np.empty((Z, T, 7), dtype=np.float32)
+    features[:, :, 0] = demand_z
+    features[:, :, 1:6] = calendar[None, :, :]
+    features[:, :, 6] = dropoff_z
+
+    features_clipped = features.copy()
+    features_clipped[:, :, 0] = np.clip(features_clipped[:, :, 0], -CLIP_BOUND, CLIP_BOUND)
+    features_clipped[:, :, 6] = np.clip(features_clipped[:, :, 6], -CLIP_BOUND, CLIP_BOUND)
 
     arrays = {
-        "demand.npy": demand, "times.npy": grid.to_numpy(dtype="datetime64[ns]"),
-        "features.npy": features, "A_out.npy": A_out, "A_in.npy": A_in,
+        "demand.npy": demand, "dropoff.npy": dropoff,
+        "times.npy": grid.to_numpy(dtype="datetime64[ns]"),
+        "features.npy": features, "features_clipped.npy": features_clipped,
+        "A_out.npy": A_out, "A_in.npy": A_in,
         "A_sym.npy": A_sym, "adjacency.npy": A_sym, "edge_index.npy": edge_index,
         "travel_time.npy": travel_time,
         "zone_ids.npy": np.asarray(zone_ids, dtype=np.int32),
@@ -182,9 +200,13 @@ def main():
                   "test": [val_end, T], "train_fraction": a.train_frac,
                   "scaler_fit_end": train_end},
         "feature_names": ["log_demand_zscore", "hour_sin", "hour_cos",
-                          "weekday_sin", "weekday_cos", "is_weekend"],
+                          "weekday_sin", "weekday_cos", "is_weekend",
+                          "log_dropoff_zscore"],
         "travel_time": "mean valid trip duration in minutes per selected directed edge; inf absent",
         "graph": "A_out and A_in preserve direction; A_sym is an ablation",
+        "clipping": f"features_clipped.npy clips log_demand_zscore and log_dropoff_zscore to "
+                    f"[-{CLIP_BOUND:g}, {CLIP_BOUND:g}]; calendar channels are untouched; "
+                    f"training/eval scripts prefer this file when present.",
     }
     with open(os.path.join(a.out, "metadata.json"), "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)

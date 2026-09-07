@@ -1,21 +1,3 @@
-"""Trainable PyTorch ST-GNN for NYC taxi demand forecasting.
-
-This is the actual model needed to replace the earlier random-encoder NumPy proof:
-all graph, temporal, and head parameters receive gradients from the forecast loss.
-It deliberately uses vanilla PyTorch (not PyG) so it is easier to install and run;
-the graph operation is explicit A @ X @ W and supports directed A_out/A_in.
-
-Input data is produced by preprocess.py:
-  features.npy [Z,T,F], A_out.npy [Z,Z], A_in.npy [Z,Z]
-
-Model:
-  h_t = ReLU(A_out X_t W_out + A_in X_t W_in + b_g)
-  q_t = GRU(h_t, q_{t-1})
-  y_hat = q_last W_head + b_head
-
-Run:
-  python train_stgnn_torch.py --data-dir real_processed_fixed --epochs 50
-"""
 from __future__ import annotations
 import argparse, json, os, random
 import numpy as np
@@ -29,7 +11,6 @@ def seed_all(seed):
 
 
 class WindowDataset(Dataset):
-    """Chronological target indices; each input uses only historical bins."""
     def __init__(self, features, start, end, window=12, horizon=5):
         self.x = torch.as_tensor(features, dtype=torch.float32)
         self.start, self.end = int(start), int(end)
@@ -40,22 +21,12 @@ class WindowDataset(Dataset):
     def __getitem__(self, k):
         target = self.targets[k]
         x_end = target - self.horizon + 1
-        x = self.x[:, x_end - self.window:x_end, :]  # [Z,W,F]
-        y = self.x[:, target, 0]                      # [Z]
+        x = self.x[:, x_end - self.window:x_end, :]
+        y = self.x[:, target, 0]
         return x, y
 
 
 class DirectedGraphConv(nn.Module):
-    """Trainable directed message-passing layer, batched over the W time axis.
-
-    A_out and A_in are fixed topology/weights from data; W_out and W_in are learned.
-    There is no random frozen encoder: every parameter below is in autograd's graph.
-
-    Input  x: [B, Z, W, F]   (W time slices)
-    Output  : [B, Z, W, H]
-    The neighbour mix is done for ALL W slices in a single einsum, avoiding the
-    per-timestep Python loop that dominated CPU runtime at long windows.
-    """
     def __init__(self, in_channels, hidden_channels):
         super().__init__()
         self.w_out = nn.Linear(in_channels, hidden_channels, bias=False)
@@ -63,9 +34,6 @@ class DirectedGraphConv(nn.Module):
         self.self_loop = nn.Linear(in_channels, hidden_channels)
 
     def forward(self, x, a_out, a_in):
-        # x: [B,Z,W,F]; out: [B,Z,W,H]
-        # Mix the ZONE dimension while preserving time and feature channels.
-        # A[i,j] transports messages from source zone j to destination zone i.
         out = torch.einsum("ij,bjwf->biwf", a_out, x)
         inc = torch.einsum("ij,bjwf->biwf", a_in, x)
         h = self.w_out(out) + self.w_in(inc) + self.self_loop(x)
@@ -82,13 +50,12 @@ class STGNN(nn.Module):
         self.horizon = horizon
 
     def forward(self, x, a_out, a_in):
-        # x [B,Z,W,F] -> spatially mixed [B,Z,W,H] (all steps at once).
-        spatial = self.spatial(x, a_out, a_in)      # [B,Z,W,H]
+        spatial = self.spatial(x, a_out, a_in)
         B, Z, W, H = spatial.shape
         seq = spatial.reshape(B * Z, W, H)
         encoded, _ = self.temporal(seq)
         last = encoded[:, -1, :].reshape(B, Z, H)
-        return self.head(last).squeeze(-1)          # [B,Z]
+        return self.head(last).squeeze(-1)
 
 
 def batches(model, loader, a_out, a_in, device, optimizer=None):

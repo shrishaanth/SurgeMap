@@ -1,15 +1,3 @@
-"""Evaluate persistence and per-zone ridge baselines at multiple horizons.
-
-The sample convention is identical to ``train_multihorizon_torch.py``:
-for a forecast anchor ``t``, ``x = features[:, t-window:t, :]`` and the target
-at horizon ``h`` is ``features[:, t+h-1, 0]``.  The feature-0 targets are the
-train-scaled log-demand z-scores produced by ``preprocess.py``.
-
-Example (from the repository root)::
-
-    python scripts/multihorizon_baseline.py --data-dir real_processed_fixed \
-        --window 48 --horizons 1,3,6,12 --out multihorizon_baselines.json
-"""
 from __future__ import annotations
 
 import argparse
@@ -24,7 +12,6 @@ DEFAULT_HORIZONS = (1, 3, 6, 12)
 
 
 def parse_horizons(value: str | Iterable[int]) -> tuple[int, ...]:
-    """Parse and validate a non-empty sequence of positive horizon bins."""
     if isinstance(value, str):
         parts = [part.strip() for part in value.split(",") if part.strip()]
         horizons = tuple(int(part) for part in parts)
@@ -38,7 +25,6 @@ def parse_horizons(value: str | Iterable[int]) -> tuple[int, ...]:
 
 
 def split_bounds(meta: dict, total: int) -> tuple[tuple[int, int], ...]:
-    """Read canonical train/validation/test bounds with safe fallbacks."""
     split = meta.get("split", {})
     train = split.get("train")
     validation = split.get("validation")
@@ -53,7 +39,6 @@ def split_bounds(meta: dict, total: int) -> tuple[tuple[int, int], ...]:
 
 def make_windows(features: np.ndarray, start: int, end: int, window: int,
                  horizons: Sequence[int]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return ``x``, multi-horizon ``y``, and anchor indices with ST-GNN alignment."""
     if features.ndim != 3:
         raise ValueError("features must have shape [zones, time, features]")
     if window < 1:
@@ -80,18 +65,12 @@ def make_windows(features: np.ndarray, start: int, end: int, window: int,
 
 
 def evaluate_persistence(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """Predict every horizon using the last observed feature-0 value."""
     if x.ndim != 4 or y.ndim != 3 or x.shape[:2] != y.shape[:2]:
         raise ValueError("expected x [N,Z,W,F] and y [N,Z,H]")
     return np.repeat(x[:, :, -1:, 0], y.shape[-1], axis=-1)
 
 
 def ridge_fit_multi(X: np.ndarray, y: np.ndarray, alpha: float) -> np.ndarray:
-    """Fit ridge coefficients for one zone and multiple targets.
-
-    The final design column is an intercept and is intentionally unregularized,
-    matching the convention in ``linear_baseline.py``.
-    """
     if alpha <= 0:
         raise ValueError("ridge alpha must be positive")
     design = np.concatenate([X.astype(np.float64), np.ones((len(X), 1))], axis=1)
@@ -101,7 +80,6 @@ def ridge_fit_multi(X: np.ndarray, y: np.ndarray, alpha: float) -> np.ndarray:
 
 
 def fit_per_zone_ridge(x: np.ndarray, y: np.ndarray, alpha: float = 1e-3) -> np.ndarray:
-    """Fit independent per-zone ridge models and return ``[N,Z,H]`` predictions."""
     if x.ndim != 4 or y.ndim != 3 or x.shape[:2] != y.shape[:2]:
         raise ValueError("expected x [N,Z,W,F] and y [N,Z,H]")
     n, z, window, features = x.shape
@@ -118,7 +96,6 @@ def fit_per_zone_ridge(x: np.ndarray, y: np.ndarray, alpha: float = 1e-3) -> np.
 
 def error_by_horizon(pred: np.ndarray, target: np.ndarray,
                      horizons: Sequence[int], zone_ids: Sequence[int] | None = None) -> dict:
-    """Compute global and optional per-zone RMSE/MAE records."""
     if pred.shape != target.shape or pred.ndim != 3:
         raise ValueError("pred and target must both have shape [N,Z,H]")
     horizons = parse_horizons(horizons)
@@ -148,14 +125,11 @@ def error_by_horizon(pred: np.ndarray, target: np.ndarray,
 
 def evaluate(features: np.ndarray, bounds: Sequence[tuple[int, int]], window: int,
              horizons: Sequence[int], ridge: float, zone_ids=None) -> dict:
-    """Build train/test windows, fit both baselines, and return metrics."""
     horizons = parse_horizons(horizons)
     train_x, train_y, train_times = make_windows(features, *bounds[0], window, horizons)
     test_x, test_y, test_times = make_windows(features, *bounds[2], window, horizons)
     persistence = evaluate_persistence(test_x, test_y)
     ridge_pred = fit_per_zone_ridge(train_x, train_y, ridge)
-    # Fit models again against test features; helper expects train features and
-    # targets, so preserve coefficients explicitly for the real test prediction.
     n, z, w, f = train_x.shape
     ridge_test = np.empty_like(test_y, dtype=np.float32)
     for zone in range(z):
@@ -175,7 +149,7 @@ def evaluate(features: np.ndarray, bounds: Sequence[tuple[int, int]], window: in
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="real_processed_fixed")
     parser.add_argument("--window", type=int, default=48)
     parser.add_argument("--horizons", default="1,3,6,12")
@@ -183,8 +157,6 @@ def main() -> None:
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
     horizons = parse_horizons(args.horizons)
-    # Prefer the outlier-clipped feature tensor when present so sparse-zone
-    # z-scores do not dominate RMSE (see real_processed_265/features_clipped.npy).
     features_path = os.path.join(args.data_dir, "features_clipped.npy")
     if not os.path.exists(features_path):
         features_path = os.path.join(args.data_dir, "features.npy")

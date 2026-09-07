@@ -273,13 +273,22 @@
       253,
       8928
     ],
+    "dropoff": [
+      253,
+      8928
+    ],
     "times": [
       8928
     ],
     "features": [
       253,
       8928,
-      6
+      7
+    ],
+    "features_clipped": [
+      253,
+      8928,
+      7
     ],
     "A_out": [
       253,
@@ -338,8 +347,10 @@
     "hour_cos",
     "weekday_sin",
     "weekday_cos",
-    "is_weekend"
+    "is_weekend",
+    "log_dropoff_zscore"
   ],
   "travel_time": "mean valid trip duration in minutes per selected directed edge; inf absent",
-  "graph": "A_out and A_in preserve direction; A_sym is an ablation"
+  "graph": "A_out and A_in preserve direction; A_sym is an ablation",
+  "clipping": "features_clipped.npy clips log_demand_zscore and log_dropoff_zscore to [-6, 6]; calendar channels are untouched; training/eval scripts prefer this file when present."
 }

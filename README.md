@@ -133,7 +133,6 @@ make smoke             # Quick dependency check
 ```
 SurgeMap/
 ├── README.md                        # Project documentation
-├── README_RUN.md                     # Detailed run guide
 ├── config.yaml                       # Central configuration (seed, data, forecast, simulator)
 ├── requirements.txt                  # Python dependencies
 ├── Makefile                          # Build automation

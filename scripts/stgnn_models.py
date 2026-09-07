@@ -1,15 +1,3 @@
-"""Small pure-NumPy spatio-temporal forecasting models.
-
-The data convention used throughout is:
-    features: [zones, time, feature_channels]
-    windows:  [batch, zones, window, feature_channels]
-    targets:  [batch, zones]
-
-This module intentionally has no dependency on a deep-learning framework.  The
-STGNN has a real spatial/temporal forward pass; its default trainer fits the
-final linear head with ridge regression, which is a stable baseline for the
-real data and keeps this example easy to run.
-"""
 from __future__ import annotations
 
 import argparse
@@ -35,13 +23,6 @@ def mape(a, b):
 
 
 class WindowedDataset:
-    """Chronological sliding-window dataset over ``features [Z,T,F]``.
-
-    A sample uses ``window`` observations and predicts the value at
-    ``window + horizon - 1`` steps after the window start.  ``windows`` accepts
-    a time interval for the target, so validation/test inputs may use the
-    immediately preceding history without shuffling or future leakage.
-    """
     def __init__(self, features, window=12, horizon=5, split=(0.70, 0.15, 0.15)):
         self.features = np.asarray(features, dtype=np.float32)
         if self.features.ndim != 3:
@@ -61,7 +42,6 @@ class WindowedDataset:
         return (0, a), (a, a + b), (a + b, a + b + c)
 
     def windows(self, start, end):
-        """Return ``X [N,Z,W,F]`` and ``Y [N,Z]`` for target times [start,end)."""
         start, end = max(0, int(start)), min(self.T, int(end))
         first_target = max(start, self.window + self.horizon - 1)
         target_times = range(first_target, end)
@@ -79,7 +59,6 @@ class WindowedDataset:
 
 
 class LinearForecast:
-    """Independent per-zone ridge regression on flattened input windows."""
     def fit(self, X, Y, ridge=1e-3):
         X, Y = np.asarray(X, dtype=np.float32), np.asarray(Y, dtype=np.float32)
         N, Z, W, F = X.shape
@@ -103,7 +82,6 @@ class LinearForecast:
 
 
 class SimpleRNN:
-    """Tanh RNN shared across zones; returns the final state [N,Z,H]."""
     def __init__(self, in_dim, hid_dim, seed=0):
         rng = np.random.default_rng(seed)
         self.in_dim, self.hid_dim = int(in_dim), int(hid_dim)
@@ -124,12 +102,10 @@ class SimpleRNN:
         return h.reshape(N, Z, self.hid_dim)
 
 
-# Backwards-compatible name for callers that used the old implementation.
 GRU = SimpleRNN
 
 
 class GraphConv:
-    """One normalized graph-convolution layer: ``A @ X @ W + b``."""
     def __init__(self, Cin, Cout, seed=7):
         rng = np.random.default_rng(seed)
         self.Cin, self.Cout = int(Cin), int(Cout)
@@ -145,7 +121,6 @@ class GraphConv:
 
 
 class STGNN:
-    """GraphConv at every time step, then a shared temporal RNN and head."""
     def __init__(self, features, A, window=12, horizon=5, hid=16, seed=7):
         features, A = np.asarray(features, dtype=np.float32), np.asarray(A, dtype=np.float32)
         if features.ndim != 3 or A.shape != (features.shape[0], features.shape[0]):
@@ -162,7 +137,6 @@ class STGNN:
         x = np.asarray(x_batch, dtype=np.float32)
         if x.ndim != 4 or x.shape[1:] != (self.Z, self.window, self.feat.shape[2]):
             raise ValueError("input must have shape [N,Z,window,F]")
-        # GraphConv expects [N,Z,F]; RNN expects [N,Z,time,hid].
         spatial = np.stack([self.gc.forward(x[:, :, t, :], self.A)
                             for t in range(self.window)], axis=2)
         return self.rnn.forward(spatial)
@@ -176,12 +150,6 @@ class STGNN:
 
 def train_temporal(model, Xtr, Ytr, Xva=None, Yva=None, epochs=20, lr=0.01,
                    batch=256, seed=0, ridge=1e-3):
-    """Fit the STGNN head using encoded training examples.
-
-    ``lr`` and ``batch`` are accepted for API compatibility.  The head fit is
-    exact ridge regression and therefore deterministic/stable; each epoch
-    records train and validation RMSE so this remains a useful training loop.
-    """
     del lr, batch, seed, epochs
     Xtr, Ytr = np.asarray(Xtr, dtype=np.float32), np.asarray(Ytr, dtype=np.float32)
     if Xtr.shape[0] == 0:
@@ -200,7 +168,7 @@ def train_temporal(model, Xtr, Ytr, Xva=None, Yva=None, epochs=20, lr=0.01,
 
 
 def main():
-    p = argparse.ArgumentParser(description="Smoke-test pure NumPy STGNN on processed real data")
+    p = argparse.ArgumentParser()
     p.add_argument("--data-dir", default="/sessions/ecstatic-adoring-wozniak/mnt/ML project/real_processed")
     p.add_argument("--window", type=int, default=12)
     p.add_argument("--horizon", type=int, default=5)

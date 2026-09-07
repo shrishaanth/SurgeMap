@@ -1,0 +1,6 @@
+# Extra dependencies for interactive feature experimentation (notebooks/).
+# Not needed for the production CLI pipeline — see requirements.txt for that.
+-r requirements.txt
+jupyter
+ipykernel
+matplotlib

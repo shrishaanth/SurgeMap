@@ -37,8 +37,8 @@ def render() -> None:
     st.markdown("""
 - The test window is the **last 15% of the month**; models never saw it during fitting. Data comes from the
   official NYC TLC trip file.
-- The ST-GNN clearly beats naive baselines (persistence, historical average). Its margin over a per-zone ridge
-  regression is small.
+- The ST-GNN clearly beats persistence at every horizon and the historical average up to about 30 minutes ahead.
+  Its margin over a per-zone ridge regression is small, and at 60 minutes a historical average is as good.
 - Repositioning results come from a **simulation**: the trips are real but the fleet is synthetic, because
   public trip data has no vehicle positions. Riders are matched to the nearest idle vehicle within 15 minutes,
   and requests with none are lost. Compare policies with each other rather than reading absolute numbers as

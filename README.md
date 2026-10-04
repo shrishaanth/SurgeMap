@@ -15,10 +15,6 @@ The repository contains:
 - an **evaluation** of policies across fleet sizes, seeds and a cost trade-off sweep
 - a **Streamlit app** to explore forecasts and run the simulator
 
-> **Status:** the data pipeline was corrected after the original extract turned out to be truncated (see
-> [Data](#data)). The model is being retrained on the corrected data, so this README intentionally reports no
-> accuracy numbers yet; they will be added from `artifacts/forecast_metrics.json` and `results/evaluation.json`.
-
 ---
 
 ## Data
@@ -63,6 +59,62 @@ Trained with AdamW, MSE loss, gradient clipping and early stopping on validation
 | Persistence | the last observed bin |
 | Historical average | mean training demand for the same zone, weekday and time of day |
 | Ridge regression | one ridge model per zone on the flattened 48-bin window |
+
+---
+
+## Results
+
+Held-out test window: 27 Jan 08:20 to 31 Jan 23:55 (1,329 forecast times, 258 zones). The model never saw it
+during fitting. The final model trained for 50 epochs on the corrected data (best validation epoch 47).
+
+### Forecast accuracy
+
+RMSE in pickups per zone per 5-minute bin (lower is better), from `artifacts/forecast_metrics.json`:
+
+| Model | 5 min | 15 min | 30 min | 60 min |
+|-------|-------|--------|--------|--------|
+| **ST-GNN** | **1.449** | **1.546** | **1.618** | 1.726 |
+| Ridge regression | 1.467 | 1.580 | 1.681 | 1.844 |
+| Persistence | 1.716 | 1.889 | 2.016 | 2.189 |
+| Historical average | 1.701 | 1.702 | 1.703 | **1.706** |
+
+ST-GNN RMSE reduction: **15.6 to 21.2% vs persistence**, 1.2 to 6.4% vs ridge, 14.8% vs historical average at 5 min
+shrinking to 5.0% at 30 min, and **1.2% worse than historical average at 60 min**. So the graph model earns
+its keep over naive baselines at every horizon, but its edge over a per-zone ridge is small, and at one hour ahead a
+plain time-of-day average is as good.
+
+Hotspot ranking (mean number of the 5 busiest zones also among the 5 predicted): ST-GNN 3.16, 3.07, 2.98, 2.92
+for 5, 15, 30, 60 min, against 2.93 to 2.55 for persistence. The top-3 hit rate (at least one of the predicted top
+3 is a real top 3) is 0.92 to 0.94 for the ST-GNN but also 0.86 to 0.93 for every baseline, because the busiest
+zones barely change, so it does not separate the models. The training script's inline hotspot numbers rank
+zones by standardised demand rather than raw counts and are not comparable.
+
+### Repositioning
+
+Rider outcomes over the test window, by fleet size, with `theta = 0.1`. Cells show unmet requests (%) and mean
+rider wait (minutes, unmet requests counted as 15). Mean over 5 seeds; the standard deviation across seeds is
+about 0.1 minute (0.16 at most).
+
+| Policy | 1000 vehicles | 1500 | 2000 | 3000 |
+|--------|---------------|------|------|------|
+| Dispatch only | 61.5 / 9.98 | 49.7 / 8.49 | 42.8 / 7.63 | 33.7 / 6.50 |
+| Persistence | 57.0 / 9.25 | 40.2 / 7.07 | 27.3 / 5.40 | 12.6 / 3.41 |
+| Historical average | 57.7 / 9.32 | 40.6 / 7.08 | 27.9 / 5.44 | 15.3 / 3.79 |
+| Ridge | 57.9 / 9.34 | 41.5 / 7.20 | 28.9 / 5.57 | 15.1 / 3.76 |
+| ST-GNN | 57.7 / 9.33 | 41.3 / 7.18 | 28.4 / 5.51 | 14.6 / 3.70 |
+| Oracle (true demand) | 56.8 / 9.17 | 40.3 / 6.98 | 25.7 / 5.05 | 12.2 / 3.18 |
+
+![Rider wait vs empty driving](results/tradeoff.png)
+
+- Forecast-driven repositioning clearly helps once the fleet is large enough: at 2,000 vehicles unmet requests fall
+  from 42.8% to 26 to 29% and mean wait from 7.6 to about 5.4 minutes. At 1,000 vehicles there is little to gain.
+- At the same `theta`, persistence gives slightly better rider outcomes than the ST-GNN but drives more empty
+  (1.29M vs 1.11M vehicle-minutes at 2,000 vehicles). Comparing at equal driving cost along the `theta` sweep,
+  **the ST-GNN policy waits 0.17 minutes less than persistence on average, about 47% of the improvement perfect
+  demand knowledge would give** (evaluated at 2,000 vehicles only).
+- At 3,000 vehicles, persistence is better than the ST-GNN on rider wait at `theta = 0.1` (3.41 vs 3.70
+  minutes) while driving more; the equal-cost comparison was not run at that size.
+- Perfect foresight beats persistence by only 0.2 to 0.35 minutes of wait at 2,000 to 3,000 vehicles, which bounds how much any forecaster can add at a 15-minute decision horizon.
 
 ---
 

@@ -45,7 +45,7 @@ def render() -> None:
         st.subheader("ST-GNN RMSE reduction (%)")
         st.dataframe(gain.round(1))
         st.caption("Positive means the ST-GNN is better. The margin over a per-zone ridge regression is small; "
-                   "the clear gains are over persistence and the historical average.")
+                   "the clear gains are over persistence at every horizon, and over the historical average at short horizons.")
 
     st.subheader("Hotspot ranking")
     st.dataframe(frame.pivot(index="Model", columns="Horizon (min)", values="Top-3 hit rate").round(3))

@@ -118,6 +118,13 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
             hidden = state["spatial.w_out.weight"].shape[0]
         else:
             raise ValueError("cannot infer hidden size from checkpoint; pass --hidden")
+    n_features = state["spatial.w_out.weight"].shape[1] if "spatial.w_out.weight" in state else features.shape[2]
+    if features.shape[2] < n_features:
+        raise ValueError(f"checkpoint expects {n_features} feature channels but "
+                         f"{features_path} has {features.shape[2]}")
+    # Channels are appended in preprocess.py, so a checkpoint trained before a channel was
+    # added (e.g. the dropoff z-score) uses the leading channels of the current features.
+    features = features[:, :, :n_features]
     model = MultiHorizonSTGNN(features.shape[2], hidden=hidden, horizons=horizons).to(device)
     try:
         model.load_state_dict(state)

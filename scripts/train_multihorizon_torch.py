@@ -10,9 +10,11 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
+from accuracy_checks import histavg_for_bins, zscore_params
 from train_stgnn_torch import DirectedGraphConv
 
 HORIZONS = (1, 3, 6, 12)
+CLIP = 6.0
 
 
 def seed_all(seed: int) -> None:
@@ -24,8 +26,13 @@ def seed_all(seed: int) -> None:
 
 
 class MultiHorizonDataset(Dataset):
+    """Windows of features with multi-horizon targets and an optional per-target prior.
+
+    Each item is (x [Z, W, F], y [Z, H], prior [Z, H]); the prior is zero when none is given.
+    """
+
     def __init__(self, features: np.ndarray, start: int, end: int,
-                 window: int = 48, horizons=HORIZONS):
+                 window: int = 48, horizons=HORIZONS, prior: np.ndarray | None = None):
         self.features = torch.as_tensor(features, dtype=torch.float32)
         self.start, self.end = int(start), int(end)
         self.window = int(window)
@@ -34,6 +41,10 @@ class MultiHorizonDataset(Dataset):
             raise ValueError("features must have shape [Z,T,F]")
         if self.window < 1 or not self.horizons or min(self.horizons) < 1:
             raise ValueError("window and horizons must be positive")
+        if prior is not None and prior.shape != (features.shape[0], features.shape[1], len(self.horizons)):
+            raise ValueError("prior must have shape [Z,T,H]")
+        self.prior = None if prior is None else torch.as_tensor(prior, dtype=torch.float32)
+        self._no_prior = torch.zeros(features.shape[0], len(self.horizons))
         first = max(self.start, self.window)
         last = self.end - max(self.horizons)
         self.times = list(range(first, max(first, last + 1)))
@@ -46,16 +57,26 @@ class MultiHorizonDataset(Dataset):
         t = self.times[index]
         x = self.features[:, t - self.window:t, :]
         y = torch.stack([self.features[:, t + h - 1, 0] for h in self.horizons], dim=-1)
-        return x, y
+        prior = self._no_prior if self.prior is None else self.prior[:, t, :]
+        return x, y, prior
 
 
 class MultiHorizonSTGNN(nn.Module):
-    def __init__(self, n_features: int, hidden: int = 64, horizons=HORIZONS):
+    """Graph convolution per time step, a GRU over time, and one linear head per horizon.
+
+    With zone_dim > 0 each zone gets a learned embedding that is fed to the heads, so the
+    network can tell zones apart. A prior passed to forward() is added to the output, so the
+    network then learns the residual over it.
+    """
+
+    def __init__(self, n_features: int, hidden: int = 64, horizons=HORIZONS,
+                 n_zones: int = 0, zone_dim: int = 0):
         super().__init__()
         self.horizons = tuple(int(h) for h in horizons)
         self.spatial = DirectedGraphConv(n_features, hidden)
         self.temporal = nn.GRU(hidden, hidden, num_layers=1, batch_first=True)
-        self.heads = nn.ModuleList(nn.Linear(hidden, 1) for _ in self.horizons)
+        self.zone_embedding = nn.Embedding(n_zones, zone_dim) if zone_dim > 0 else None
+        self.heads = nn.ModuleList(nn.Linear(hidden + zone_dim, 1) for _ in self.horizons)
 
     def encode(self, x, a_out, a_in):
         spatial = self.spatial(x, a_out, a_in)
@@ -63,19 +84,62 @@ class MultiHorizonSTGNN(nn.Module):
         encoded, _ = self.temporal(spatial.reshape(b * z, w, hidden))
         return encoded[:, -1, :].reshape(b, z, hidden)
 
-    def forward(self, x, a_out, a_in):
+    def forward(self, x, a_out, a_in, prior=None):
         encoded = self.encode(x, a_out, a_in)
-        return torch.stack([head(encoded).squeeze(-1) for head in self.heads], dim=-1)
+        if self.zone_embedding is not None:
+            zones = self.zone_embedding.weight.unsqueeze(0).expand(encoded.shape[0], -1, -1)
+            encoded = torch.cat([encoded, zones], dim=-1)
+        out = torch.stack([head(encoded).squeeze(-1) for head in self.heads], dim=-1)
+        return out if prior is None else out + prior
 
 
-def run_epoch(model, loader, a_out, a_in, device, optimizer=None):
+def prepare_inputs(data_dir: str, features: np.ndarray, train_end: int, horizons,
+                   use_weather: bool = False, prior_kind: str = "none"):
+    """Optional extra inputs: weather channels appended to the features, and a prior [Z, T, H].
+
+    The "histavg" prior is the standardised time-of-day average of each target bin. Bins
+    inside the train split exclude their own value, so the prior does not leak the target.
+    """
+    prior = None
+    if use_weather:
+        weather = np.load(os.path.join(data_dir, "weather.npy")).astype(np.float32)
+        tiled = np.broadcast_to(weather[None], (features.shape[0],) + weather.shape)
+        features = np.concatenate([features, tiled], axis=2)
+    if prior_kind == "histavg":
+        demand = np.load(os.path.join(data_dir, "demand.npy")).astype(np.float64)
+        times = np.load(os.path.join(data_dir, "times.npy"))
+        total = demand.shape[1]
+        hist = histavg_for_bins(demand, times, train_end, np.arange(total))
+        mu, sigma = zscore_params(demand, train_end)
+        hist_z = np.clip((np.log1p(hist) - mu[:, None]) / sigma[:, None], -CLIP, CLIP)
+        prior = np.stack([hist_z[:, np.minimum(np.arange(total) + h - 1, total - 1)] for h in horizons],
+                         axis=-1).astype(np.float32)
+    elif prior_kind != "none":
+        raise ValueError(f"unknown prior: {prior_kind}")
+    return features, prior
+
+
+def zone_weights(data_dir: str, train_end: int, power: float) -> np.ndarray:
+    """Loss weight per zone, ((1 + mean pickups) * sigma) ** power, scaled to mean 1.
+
+    A z-score error of dz moves the pickup count by about (1 + count) * sigma * dz, so
+    power 2 approximates squared error in pickups and power 0 is the unweighted loss.
+    """
+    demand = np.load(os.path.join(data_dir, "demand.npy")).astype(np.float64)
+    _, sigma = zscore_params(demand, train_end)
+    weight = ((1.0 + demand[:, :train_end].mean(axis=1)) * sigma) ** power
+    return (weight / weight.mean()).astype(np.float32)
+
+
+def run_epoch(model, loader, a_out, a_in, device, optimizer=None, weight=None):
     training = optimizer is not None
     model.train(training)
     total, count, predictions, targets = 0.0, 0, [], []
-    for x, y in loader:
-        x, y = x.to(device), y.to(device)
-        pred = model(x, a_out, a_in)
-        loss = nn.functional.mse_loss(pred, y)
+    for x, y, prior in loader:
+        x, y, prior = x.to(device), y.to(device), prior.to(device)
+        pred = model(x, a_out, a_in, prior)
+        squared = (pred - y) ** 2
+        loss = squared.mean() if weight is None else (squared * weight[None, :, None]).mean()
         if training:
             optimizer.zero_grad()
             loss.backward()
@@ -141,6 +205,14 @@ def main():
     parser.add_argument("--patience", type=int, default=8)
     parser.add_argument("--out", default="multihorizon_stgnn_checkpoint.pt")
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--shuffle", action="store_true", help="shuffle training windows each epoch")
+    parser.add_argument("--prior", choices=("none", "histavg"), default="none",
+                        help="predict the residual over the time-of-day average of each target bin")
+    parser.add_argument("--zone-dim", type=int, default=0, help="size of a learned per-zone embedding (0 = off)")
+    parser.add_argument("--weather", action="store_true", help="append the weather channels to the inputs")
+    parser.add_argument("--loss-power", type=float, default=0.0,
+                        help="weight zones by ((1 + mean pickups) * sigma) ** power; 2 approximates count error")
+    parser.add_argument("--no-graph", action="store_true", help="ablation: remove the neighbour terms")
     args = parser.parse_args()
     seed_all(args.seed)
 
@@ -151,23 +223,33 @@ def main():
     features = np.load(features_path)
     a_out_np = np.load(os.path.join(data_dir, "A_out.npy"))
     a_in_np = np.load(os.path.join(data_dir, "A_in.npy"))
+    if args.no_graph:
+        a_out_np, a_in_np = np.zeros_like(a_out_np), np.zeros_like(a_in_np)
     with open(os.path.join(data_dir, "metadata.json"), encoding="utf-8") as f:
         meta = json.load(f)
     bounds = split_bounds(meta, features.shape[1])
-    datasets = [MultiHorizonDataset(features, *bound, args.window) for bound in bounds]
-    loaders = [DataLoader(ds, args.batch_size, shuffle=False) for ds in datasets]
+    features, prior = prepare_inputs(data_dir, features, bounds[0][1], HORIZONS, args.weather, args.prior)
+    datasets = [MultiHorizonDataset(features, *bound, args.window, prior=prior) for bound in bounds]
+    generator = torch.Generator().manual_seed(args.seed)
+    loaders = [DataLoader(datasets[0], args.batch_size, shuffle=args.shuffle, generator=generator),
+               DataLoader(datasets[1], args.batch_size, shuffle=False),
+               DataLoader(datasets[2], args.batch_size, shuffle=False)]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     a_out = torch.as_tensor(a_out_np, dtype=torch.float32, device=device)
     a_in = torch.as_tensor(a_in_np, dtype=torch.float32, device=device)
-    model = MultiHorizonSTGNN(features.shape[2], args.hidden).to(device)
+    weight = None
+    if args.loss_power > 0:
+        weight = torch.as_tensor(zone_weights(data_dir, bounds[0][1], args.loss_power), device=device)
+    model = MultiHorizonSTGNN(features.shape[2], args.hidden, n_zones=features.shape[0],
+                              zone_dim=args.zone_dim).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     best, best_epoch, wait, history = float("inf"), 0, 0, []
     print(f"device={device} features={features.shape} split=" + "/".join(map(str, map(len, datasets))))
     for epoch in range(1, args.epochs + 1):
-        train_rmse, _, _ = run_epoch(model, loaders[0], a_out, a_in, device, optimizer)
-        val_rmse, _, _ = run_epoch(model, loaders[1], a_out, a_in, device)
+        train_rmse, _, _ = run_epoch(model, loaders[0], a_out, a_in, device, optimizer, weight)
+        val_rmse, _, _ = run_epoch(model, loaders[1], a_out, a_in, device, weight=weight)
         history.append({"epoch": epoch, "train_rmse": train_rmse, "val_rmse": val_rmse})
-        print(f"epoch={epoch:03d} train_rmse={train_rmse:.5f} val_rmse={val_rmse:.5f}")
+        print(f"epoch={epoch:03d} train_rmse={train_rmse:.5f} val_rmse={val_rmse:.5f}", flush=True)
         if val_rmse < best:
             best, best_epoch, wait = val_rmse, epoch, 0
             torch.save({"model": model.state_dict(), "args": vars(args), "horizons": HORIZONS,

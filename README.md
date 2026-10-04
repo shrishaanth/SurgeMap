@@ -123,8 +123,8 @@ significant at 15 and 30 minutes, borderline at 5, and not significant at 60.
   on neighbouring zones; it does not show that the same network trained without a graph would be worse. Giving the
   gradient-boosted model flow-weighted neighbour demand left its error unchanged (`results/spatial_check.json`).
 
-The calibration patches the first two points from outside the network. Retraining with these fixed inside the
-network has not been done yet.
+The calibration patches the first two points from outside the network. The trainer has options to address all
+four inside it (see [Retraining the ST-GNN](#retraining-the-st-gnn)); those runs have not been done yet.
 
 Hotspot ranking, as the mean number of the 5 busiest zones also among the 5 predicted, across 5 to 60 minutes:
 calibrated ST-GNN 3.19 to 3.08, calibrated gradient boosting 3.18 to 3.06, persistence 2.93 to 2.55. The top-3 hit
@@ -231,6 +231,41 @@ The same steps are available as `make preprocess-265`, `make train-multi-265`, `
 
 ---
 
+## Retraining the ST-GNN
+
+`train_multihorizon_torch.py` has options that target each diagnosed weakness. They are off by default, so the
+original command still reproduces the shipped model.
+
+| Option | What it does | Weakness it targets |
+|--------|--------------|---------------------|
+| `--shuffle` | shuffle training windows each epoch | underfitting (batches were consecutive windows) |
+| `--prior histavg` | predict the residual over the time-of-day average of each target bin | no daily or weekly pattern |
+| `--zone-dim 8` | learned embedding per zone, fed to the output heads | no notion of which zone it is |
+| `--weather` | append the precipitation and temperature channels | unused weather data |
+| `--loss-power 1` | weight zones by `((1 + mean pickups) x sigma) ** power` in the loss (2 approximates count error) | loss weights all zones equally |
+| `--no-graph` | remove the neighbour terms (ablation) | tests whether the graph helps |
+
+```powershell
+# Improved recipe, about 5 hours on a CPU for 80 epochs (minutes on a GPU)
+python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --window 48 --epochs 80 --hidden 64 --batch-size 128 --lr 0.001 --patience 12 --shuffle --prior histavg --zone-dim 8 --weather --loss-power 1 --out multihorizon_v2.pt
+
+# The same recipe without the graph, to measure what the graph contributes
+python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --window 48 --epochs 80 --hidden 64 --batch-size 128 --lr 0.001 --patience 12 --shuffle --prior histavg --zone-dim 8 --weather --loss-power 1 --no-graph --out multihorizon_v2_nograph.pt
+
+# Score both on the test split against the shipped models, with bootstrap intervals
+python scripts\compare_checkpoints.py multihorizon_v2.pt multihorizon_v2_nograph.pt
+```
+
+Or `make train-v2`, `make train-v2-nograph` and `make compare-v2`. With a weighted loss the `train_rmse` and
+`val_rmse` printed during training are the weighted objective and are not comparable with the shipped model's
+0.72; use `compare_checkpoints.py` for a like-for-like score in pickup counts.
+
+These options do not remove the log-scale bias or the drift in demand level, so the validation calibration still
+applies to a retrained model. Nothing here has been trained to completion yet: a one-epoch smoke run starts at
+the level of the time-of-day average (RMSE 1.64 to 1.71), as expected for a residual model.
+
+---
+
 ## Project structure
 
 ```
@@ -246,6 +281,7 @@ SurgeMap/
 │   ├── accuracy_checks.py       Extra baselines, bootstrap intervals, merge into the forecasts
 │   ├── calibrate_forecasts.py   Validation-fitted bias correction and blend for both models
 │   ├── diagnose_stgnn.py        Where the ST-GNN's error comes from
+│   ├── compare_checkpoints.py   Scores retrained checkpoints against the shipped models
 │   ├── simulator.py             Fleet simulator with dispatch matching
 │   ├── reposition.py            Forecast-driven LP repositioning policy
 │   ├── run_evaluation.py        Policy comparison and trade-off sweep

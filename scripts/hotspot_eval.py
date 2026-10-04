@@ -14,7 +14,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from train_multihorizon_torch import MultiHorizonDataset, MultiHorizonSTGNN
+from train_multihorizon_torch import MultiHorizonDataset, MultiHorizonSTGNN, prepare_inputs
 from train_multihorizon_torch import split_bounds as _split_bounds
 
 DEFAULT_HORIZONS = (1, 3, 6, 12)
@@ -118,6 +118,11 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
             hidden = state["spatial.w_out.weight"].shape[0]
         else:
             raise ValueError("cannot infer hidden size from checkpoint; pass --hidden")
+    train_end = _split_bounds(meta, features.shape[1])[0][1]
+    features, prior = prepare_inputs(data_dir, features, train_end, horizons,
+                                     bool(saved_args.get("weather")), saved_args.get("prior") or "none")
+    if saved_args.get("no_graph"):
+        a_out, a_in = np.zeros_like(a_out), np.zeros_like(a_in)
     n_features = state["spatial.w_out.weight"].shape[1] if "spatial.w_out.weight" in state else features.shape[2]
     if features.shape[2] < n_features:
         raise ValueError(f"checkpoint expects {n_features} feature channels but "
@@ -125,7 +130,9 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
     # Channels are appended in preprocess.py, so a checkpoint trained before a channel was
     # added (e.g. the dropoff z-score) uses the leading channels of the current features.
     features = features[:, :, :n_features]
-    model = MultiHorizonSTGNN(features.shape[2], hidden=hidden, horizons=horizons).to(device)
+    zone_dim = state["zone_embedding.weight"].shape[1] if "zone_embedding.weight" in state else 0
+    model = MultiHorizonSTGNN(features.shape[2], hidden=hidden, horizons=horizons,
+                              n_zones=features.shape[0], zone_dim=zone_dim).to(device)
     try:
         model.load_state_dict(state)
     except RuntimeError as exc:
@@ -134,19 +141,21 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
             f"horizons={horizons}, n_features={features.shape[2]}): {exc}"
         ) from exc
     model.eval()
+    model.prior_array = prior      # [Z, T, H] or None; collect_predictions feeds it back to the model
     return model, features, a_out, a_in, horizons, meta
 
 
 def collect_predictions(model, features, a_out, a_in, bounds, window: int, horizons,
                         batch_size: int = 128, device=torch.device("cpu")) -> tuple:
-    dataset = MultiHorizonDataset(features, *bounds[2], window, horizons)
+    dataset = MultiHorizonDataset(features, *bounds[2], window, horizons,
+                                  prior=getattr(model, "prior_array", None))
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     preds, targets, anchors = [], [], []
     with torch.no_grad():
-        for x, y in loader:
+        for x, y, prior in loader:
             x, y = x.to(device), y.to(device)
             out = model(x, torch.as_tensor(a_out, dtype=torch.float32, device=device),
-                        torch.as_tensor(a_in, dtype=torch.float32, device=device))
+                        torch.as_tensor(a_in, dtype=torch.float32, device=device), prior.to(device))
             preds.append(out.detach().cpu().numpy())
             targets.append(y.detach().cpu().numpy())
     if not preds:

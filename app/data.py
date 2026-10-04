@@ -20,8 +20,9 @@ FORECAST_METRICS = ROOT / "artifacts" / "forecast_metrics.json"
 EVALUATION = ROOT / "results" / "evaluation.json"
 DATA_DIR = ROOT / "real_processed_265"
 
-MODELS = ("stgnn", "ridge", "persistence", "histavg")
-LABELS = {"stgnn": "ST-GNN", "ridge": "Ridge regression", "persistence": "Persistence",
+MODELS = ("stgnn", "gbm", "ridge_hist", "ridge", "persistence", "histavg")
+LABELS = {"stgnn": "ST-GNN", "gbm": "Gradient boosting", "ridge_hist": "Ridge + time-of-day average",
+          "ridge": "Ridge regression", "persistence": "Persistence",
           "histavg": "Historical average", "oracle": "Oracle (true demand)", "none": "Dispatch only"}
 
 

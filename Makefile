@@ -1,4 +1,4 @@
-.PHONY: install preprocess-265 train-265 train-multi-265 export evaluate plots app test smoke
+.PHONY: install preprocess-265 train-265 train-multi-265 train-v2 train-v2-nograph compare-v2 export evaluate plots app test smoke
 
 PYTHON ?= python
 DATA_DIR_265 ?= real_processed_265
@@ -16,6 +16,17 @@ train-265:
 
 train-multi-265:
 	$(PYTHON) scripts/train_multihorizon_torch.py --data-dir "$(DATA_DIR_265)" --window 48 --epochs 50 --hidden 64 --batch-size 128 --lr 0.001 --patience 8 --out multihorizon_stgnn_checkpoint_265.pt
+
+V2_FLAGS ?= --window 48 --epochs 80 --hidden 64 --batch-size 128 --lr 0.001 --patience 12 --shuffle --prior histavg --zone-dim 8 --weather --loss-power 1
+
+train-v2:
+	$(PYTHON) scripts/train_multihorizon_torch.py --data-dir "$(DATA_DIR_265)" $(V2_FLAGS) --out multihorizon_v2.pt
+
+train-v2-nograph:
+	$(PYTHON) scripts/train_multihorizon_torch.py --data-dir "$(DATA_DIR_265)" $(V2_FLAGS) --no-graph --out multihorizon_v2_nograph.pt
+
+compare-v2:
+	$(PYTHON) scripts/compare_checkpoints.py multihorizon_v2.pt multihorizon_v2_nograph.pt
 
 export:
 	$(PYTHON) scripts/export_predictions.py --data-dir "$(DATA_DIR_265)" --checkpoint multihorizon_265_clipped.pt --out-dir artifacts

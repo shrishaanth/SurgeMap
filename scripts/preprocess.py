@@ -28,6 +28,17 @@ def parse_args():
     return p.parse_args()
 
 
+def iter_chunks(path, cols, chunksize):
+    """Yield DataFrames of `cols` from a CSV or parquet trip file, `chunksize` rows at a time."""
+    if str(path).lower().endswith(".parquet"):
+        import pyarrow.parquet as pq
+        for batch in pq.ParquetFile(path).iter_batches(batch_size=chunksize, columns=cols):
+            yield batch.to_pandas()
+    else:
+        yield from pd.read_csv(path, usecols=cols, chunksize=chunksize,
+                               parse_dates=[PICKUP, DROPOFF])
+
+
 def row_validity(chunk, start, end):
     pu = pd.to_datetime(chunk[PICKUP], errors="coerce")
     do = pd.to_datetime(chunk[DROPOFF], errors="coerce")
@@ -67,8 +78,7 @@ def main():
     duration_count = Counter()
 
     print(f"[preprocess] pass 1: {a.input}; strict range [{start}, {end})")
-    for chunk in pd.read_csv(a.input, usecols=cols, chunksize=a.chunksize,
-                             parse_dates=[PICKUP, DROPOFF]):
+    for chunk in iter_chunks(a.input, cols, a.chunksize):
         total_rows += len(chunk)
         pu, do, pu_id, do_id, time_ok, loc_ok, dur_ok, duration = row_validity(chunk, start, end)
         invalid_time += int((~time_ok).sum())
@@ -125,8 +135,7 @@ def main():
     dropoff = np.zeros((Z, T), dtype=np.float32)
     grid_index = {t: i for i, t in enumerate(grid)}
     print(f"[preprocess] pass 2: aggregating complete grid ({T} bins)")
-    for chunk in pd.read_csv(a.input, usecols=cols, chunksize=a.chunksize,
-                             parse_dates=[PICKUP, DROPOFF]):
+    for chunk in iter_chunks(a.input, cols, a.chunksize):
         pu, do, pu_id, do_id, time_ok, loc_ok, dur_ok, _ = row_validity(chunk, start, end)
         ok = time_ok & loc_ok & dur_ok
         if not ok.any():

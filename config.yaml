@@ -1,3 +1,5 @@
+# Reference configuration documenting the settings used for the reported results.
+# The scripts take these values as CLI arguments; this file is not read at runtime.
 project:
   seed: 7
   data_dir: real_processed_265
@@ -20,11 +22,3 @@ forecast:
   learning_rate: 0.001
   patience: 8
   checkpoint: multihorizon_stgnn_checkpoint_265.pt
-
-simulator:
-  module: simulator265
-  fleet_sizes: "500,1000,1500,2000"
-  horizon: 288
-  seeds: "0,1,2"
-  forecast_horizon: 3
-  step_minutes: 5

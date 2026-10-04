@@ -48,7 +48,7 @@ Raw NYC Taxi CSV
   hotspot_eval.py        Top-k ranking evaluation on held-out test split
        │
        ▼
-  Baselines / Simulator  Persistence, Ridge Regression, Fleet repositioning policies
+  multihorizon_baseline.py   Persistence and per-zone ridge regression baselines
 ```
 
 ### Model Architecture
@@ -120,7 +120,7 @@ python scripts\hotspot_eval.py --checkpoint multihorizon_265_clipped.pt --data-d
 
 ```powershell
 make install           # Install dependencies
-make preprocess-265    # Preprocess 265 zones + build travel matrix
+make preprocess-265    # Preprocess all zones from the raw CSV
 make train-multi-265   # Train multi-horizon ST-GNN
 make test              # Run test suite
 make smoke             # Quick dependency check

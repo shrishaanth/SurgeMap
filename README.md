@@ -103,6 +103,12 @@ Reading it honestly:
 - Gradient boosting is better at every horizon, significantly so from 30 minutes on (6.7% lower RMSE at 60 minutes).
   On this data the graph structure has not been shown to add accuracy beyond what simple features provide. A
   controlled test (the same network with the graph removed) has not been run.
+- Spatial information is not the missing piece here. Giving the gradient-boosted model flow-weighted upstream
+  and downstream neighbour demand (the same flows that define the ST-GNN's graph) leaves its error unchanged:
+  RMSE 1.428, 1.536, 1.563, 1.608 against 1.429, 1.523, 1.558, 1.610 (`results/spatial_check.json`). A zone's own
+  history, the time of day and citywide demand already carry the useful signal at 5 to 60 minutes; most zones
+  are quiet, and the busy ones in Manhattan move together with the city as a whole. This is evidence about one
+  kind of spatial signal (trip-flow neighbours, one hop), not a proof that no graph could help.
 
 Hotspot ranking, as the mean number of the 5 busiest zones also among the 5 predicted: gradient boosting 3.18 to
 3.04 and the ST-GNN 3.16 to 2.92 across 5 to 60 minutes, against 2.93 to 2.55 for persistence. The top-3 hit rate

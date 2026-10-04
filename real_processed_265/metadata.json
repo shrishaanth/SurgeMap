@@ -1,5 +1,5 @@
 {
-  "input": "C:\\Users\\shris\\Desktop\\Projects\\FleetMg\\SurgeMap\\data\\yellow_tripdata_2024-01.csv",
+  "input": "C:\\Users\\shris\\Desktop\\Projects\\FleetMg\\SurgeMap\\data\\yellow_tripdata_2024-01.parquet",
   "month": "2024-01",
   "start": "2024-01-01T00:00:00",
   "end": "2024-02-01T00:00:00",
@@ -116,9 +116,11 @@
     106,
     107,
     108,
+    109,
     112,
     113,
     114,
+    115,
     116,
     117,
     118,
@@ -206,7 +208,9 @@
     201,
     202,
     203,
+    204,
     205,
+    206,
     207,
     208,
     209,
@@ -214,6 +218,7 @@
     211,
     212,
     213,
+    214,
     215,
     216,
     217,
@@ -266,64 +271,64 @@
     264,
     265
   ],
-  "n_zones": 253,
+  "n_zones": 258,
   "n_bins": 8928,
   "shapes": {
     "demand": [
-      253,
+      258,
       8928
     ],
     "dropoff": [
-      253,
+      258,
       8928
     ],
     "times": [
       8928
     ],
     "features": [
-      253,
+      258,
       8928,
       7
     ],
     "features_clipped": [
-      253,
+      258,
       8928,
       7
     ],
     "A_out": [
-      253,
-      253
+      258,
+      258
     ],
     "A_in": [
-      253,
-      253
+      258,
+      258
     ],
     "A_sym": [
-      253,
-      253
+      258,
+      258
     ],
     "adjacency": [
-      253,
-      253
+      258,
+      258
     ],
     "edge_index": [
       2,
-      23402
+      26180
     ],
     "travel_time": [
-      253,
-      253
+      258,
+      258
     ],
     "zone_ids": [
-      253
+      258
     ]
   },
   "filter": {
-    "total_rows": 2620669,
-    "valid_rows": 2586749,
-    "invalid_time": 15,
+    "total_rows": 2964624,
+    "valid_rows": 2927173,
+    "invalid_time": 618,
     "invalid_location": 0,
-    "invalid_duration": 33905
+    "invalid_duration": 36833
   },
   "split": {
     "train": [

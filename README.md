@@ -110,7 +110,7 @@ about 0.1 minute (0.16 at most).
   from 42.8% to 26 to 29% and mean wait from 7.6 to about 5.4 minutes. At 1,000 vehicles there is little to gain.
 - At the same `theta`, persistence gives slightly better rider outcomes than the ST-GNN but drives more empty
   (1.29M vs 1.11M vehicle-minutes at 2,000 vehicles). Comparing at equal driving cost along the `theta` sweep,
-  **the ST-GNN policy waits 0.17 minutes less than persistence on average, about 46% of the improvement perfect
+  **the ST-GNN policy waits 0.17 minutes less than persistence on average, about 47% of the improvement perfect
   demand knowledge would give** (evaluated at 2,000 vehicles only).
 - At 3,000 vehicles, persistence is better than the ST-GNN on rider wait at `theta = 0.1` (3.41 vs 3.70
   minutes) while driving more; the equal-cost comparison was not run at that size.

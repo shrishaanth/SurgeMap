@@ -5,9 +5,5 @@ PyYAML>=6.0,<7
 torch>=2.2,<3
 scipy>=1.10,<2
 
-# Optional: simulator and PPO
-gymnasium>=0.29,<1
-stable-baselines3>=2.3,<3
-
 # Test runner
 pytest>=8,<9

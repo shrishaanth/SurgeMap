@@ -6,5 +6,9 @@ torch>=2.2,<3
 scipy>=1.10,<2
 pyarrow>=15  # reads the official TLC parquet files
 
+
+# Streamlit app (the app itself needs only app/requirements.txt)
+streamlit>=1.40
+
 # Test runner
 pytest>=8,<9

@@ -1,0 +1,6 @@
+numpy>=1.24,<3
+pandas>=2.0,<3
+scipy>=1.10,<2
+streamlit>=1.40
+pydeck>=0.9
+altair>=5

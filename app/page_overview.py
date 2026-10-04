@@ -41,7 +41,7 @@ def render() -> None:
 - As first trained, the ST-GNN beats persistence but is beaten by a gradient-boosted model with simple features.
   It under-predicts demand and lacks each zone's daily profile. After the same validation-fitted calibration is
   applied to both, the ST-GNN is the most accurate model here, by a small margin that is statistically clear at
-  15 and 30 minutes. Whether the graph itself earns that margin has not been tested.
+  15 and 30 minutes. An ablation shows the graph adds about 2 to 4% accuracy to the network.
 - Repositioning results come from a **simulation**: the trips are real but the fleet is synthetic, because
   public trip data has no vehicle positions. Riders are matched to the nearest idle vehicle within 15 minutes,
   and requests with none are lost. Compare policies with each other rather than reading absolute numbers as

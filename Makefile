@@ -17,7 +17,7 @@ train-265:
 train-multi-265:
 	$(PYTHON) scripts/train_multihorizon_torch.py --data-dir "$(DATA_DIR_265)" --window 48 --epochs 50 --hidden 64 --batch-size 128 --lr 0.001 --patience 8 --out multihorizon_stgnn_checkpoint_265.pt
 
-V2_FLAGS ?= --window 48 --epochs 80 --hidden 64 --batch-size 128 --lr 0.001 --patience 12 --shuffle --prior histavg --zone-dim 8 --weather --loss-power 1
+V2_FLAGS ?= --window 48 --epochs 80 --hidden 64 --batch-size 32 --lr 0.001 --patience 12 --shuffle --prior histavg --zone-dim 8 --weather --loss-power 1
 
 train-v2:
 	$(PYTHON) scripts/train_multihorizon_torch.py --data-dir "$(DATA_DIR_265)" $(V2_FLAGS) --out multihorizon_v2.pt

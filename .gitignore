@@ -12,3 +12,6 @@ __pycache__/
 /real_processed_265/A_sym.npy
 /real_processed_265/adjacency.npy
 /real_processed_265/edge_index.npy
+
+# Intermediate per-episode cache written by scripts/run_evaluation.py
+/results/*.runs.jsonl

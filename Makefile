@@ -1,4 +1,4 @@
-.PHONY: install preprocess-265 train-265 train-multi-265 test smoke
+.PHONY: install preprocess-265 train-265 train-multi-265 export evaluate plots test smoke
 
 PYTHON ?= python
 DATA_DIR_265 ?= real_processed_265
@@ -16,6 +16,15 @@ train-265:
 
 train-multi-265:
 	$(PYTHON) scripts/train_multihorizon_torch.py --data-dir "$(DATA_DIR_265)" --window 48 --epochs 50 --hidden 64 --batch-size 128 --lr 0.001 --patience 8 --out multihorizon_stgnn_checkpoint_265.pt
+
+export:
+	$(PYTHON) scripts/export_predictions.py --data-dir "$(DATA_DIR_265)" --checkpoint multihorizon_265_clipped.pt --out-dir artifacts
+
+evaluate:
+	$(PYTHON) scripts/run_evaluation.py --data-dir "$(DATA_DIR_265)" --predictions artifacts/predictions.npz --out results/evaluation.json
+
+plots:
+	$(PYTHON) scripts/plot_results.py --results results/evaluation.json --out-dir results
 
 test:
 	$(PYTHON) -m pytest -q

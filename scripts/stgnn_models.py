@@ -169,7 +169,7 @@ def train_temporal(model, Xtr, Ytr, Xva=None, Yva=None, epochs=20, lr=0.01,
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--data-dir", default="/sessions/ecstatic-adoring-wozniak/mnt/ML project/real_processed")
+    p.add_argument("--data-dir", default="real_processed_265")
     p.add_argument("--window", type=int, default=12)
     p.add_argument("--horizon", type=int, default=5)
     args = p.parse_args()

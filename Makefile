@@ -1,4 +1,4 @@
-.PHONY: install preprocess-265 train-265 train-multi-265 export evaluate plots test smoke
+.PHONY: install preprocess-265 train-265 train-multi-265 export evaluate plots app test smoke
 
 PYTHON ?= python
 DATA_DIR_265 ?= real_processed_265
@@ -25,6 +25,9 @@ evaluate:
 
 plots:
 	$(PYTHON) scripts/plot_results.py --results results/evaluation.json --out-dir results
+
+app:
+	$(PYTHON) -m streamlit run app/streamlit_app.py
 
 test:
 	$(PYTHON) -m pytest -q

@@ -18,7 +18,7 @@ from simulator import load_world, run_episode
 
 METRICS = ("unmet_rate", "mean_wait_served", "mean_wait_penalized", "empty_minutes",
            "reposition_minutes", "moved")
-FORECAST_POLICIES = ("persistence", "histavg", "ridge", "stgnn", "oracle")
+FORECAST_POLICIES = ("persistence", "histavg", "ridge", "ridge_hist", "gbm", "stgnn", "oracle")
 
 _STATE = {}
 
@@ -154,7 +154,7 @@ def main() -> None:
     parser.add_argument("--theta", type=float, default=0.1)
     parser.add_argument("--thetas", default="0.02,0.05,0.1,0.2,0.5,1.0")
     parser.add_argument("--sweep-fleet", type=int, default=2000)
-    parser.add_argument("--sweep-policies", default="persistence,stgnn,oracle")
+    parser.add_argument("--sweep-policies", default="persistence,stgnn,gbm,oracle")
     parser.add_argument("--lookahead", type=int, default=3)
     parser.add_argument("--workers", type=int, default=6)
     parser.add_argument("--out", default="results/evaluation.json")

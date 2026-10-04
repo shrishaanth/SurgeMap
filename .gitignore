@@ -17,3 +17,4 @@ __pycache__/
 /results/*.runs.jsonl
 
 .ipynb_checkpoints/
+/results/*.preds.npz

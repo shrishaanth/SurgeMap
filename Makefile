@@ -2,7 +2,7 @@
 
 PYTHON ?= python
 DATA_DIR_265 ?= real_processed_265
-RAW_INPUT ?= data/yellow_tripdata_2024-01.csv
+RAW_INPUT ?= data/yellow_tripdata_2024-01.parquet
 
 install:
 	$(PYTHON) -m pip install --upgrade pip

@@ -7,7 +7,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from preprocess import PICKUP, DROPOFF, PULOC, DOLOC, STEP, row_validity
+from preprocess import PICKUP, DROPOFF, PULOC, DOLOC, STEP, iter_chunks, row_validity
 
 
 def parse_args():
@@ -33,7 +33,7 @@ def build_dropoff(raw_csv: str, data_dir: str, chunksize: int = 400_000) -> np.n
 
     dropoff = np.zeros((Z, T), dtype=np.float32)
     cols = [PICKUP, DROPOFF, PULOC, DOLOC]
-    for chunk in pd.read_csv(raw_csv, usecols=cols, chunksize=chunksize, parse_dates=[PICKUP, DROPOFF]):
+    for chunk in iter_chunks(raw_csv, cols, chunksize):
         pu, do, pu_id, do_id, time_ok, loc_ok, dur_ok, _ = row_validity(chunk, start, end)
         ok = time_ok & loc_ok & dur_ok
         if not ok.any():

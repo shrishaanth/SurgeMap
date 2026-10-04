@@ -1,0 +1,132 @@
+{
+  "note": "Kaggle T4 runs, batch size 32, one seed each. RMSE in pickups per zone per 5-minute bin at 5/15/30/60 minutes. Gaps are 95% block-bootstrap intervals.",
+  "recipe": "--epochs 80 --patience 12 --batch-size 32 --shuffle --prior histavg --zone-dim 8 --weather --loss-power 1",
+  "rmse": {
+    "v2_as_trained": [
+      1.574,
+      1.58,
+      1.597,
+      1.633
+    ],
+    "v2_nograph_as_trained": [
+      1.602,
+      1.629,
+      1.66,
+      1.686
+    ],
+    "v2_calibrated": [
+      1.524,
+      1.535,
+      1.545,
+      1.558
+    ],
+    "v2_nograph_calibrated": [
+      1.532,
+      1.557,
+      1.572,
+      1.592
+    ],
+    "shipped_stgnn": [
+      1.45,
+      1.546,
+      1.619,
+      1.726
+    ],
+    "shipped_stgnn_calibrated": [
+      1.402,
+      1.468,
+      1.506,
+      1.561
+    ],
+    "gbm_calibrated": [
+      1.422,
+      1.506,
+      1.539,
+      1.577
+    ]
+  },
+  "best_epoch": {
+    "v2": 16,
+    "v2_nograph": 13
+  },
+  "graph_minus_nograph": {
+    "as_trained": {
+      "gap": [
+        0.028,
+        0.049,
+        0.063,
+        0.054
+      ],
+      "ci": [
+        [
+          0.003,
+          0.056
+        ],
+        [
+          0.015,
+          0.087
+        ],
+        [
+          0.016,
+          0.116
+        ],
+        [
+          0.002,
+          0.114
+        ]
+      ]
+    },
+    "calibrated": {
+      "gap": [
+        0.008,
+        0.022,
+        0.027,
+        0.034
+      ],
+      "ci": [
+        [
+          -0.007,
+          0.026
+        ],
+        [
+          0.003,
+          0.043
+        ],
+        [
+          0.001,
+          0.056
+        ],
+        [
+          0.004,
+          0.07
+        ]
+      ]
+    }
+  },
+  "v2_calibrated_minus_shipped_calibrated": {
+    "gap": [
+      -0.122,
+      -0.067,
+      -0.04,
+      0.003
+    ],
+    "ci": [
+      [
+        -0.162,
+        -0.088
+      ],
+      [
+        -0.094,
+        -0.045
+      ],
+      [
+        -0.062,
+        -0.019
+      ],
+      [
+        -0.028,
+        0.037
+      ]
+    ]
+  }
+}

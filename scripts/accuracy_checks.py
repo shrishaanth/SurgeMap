@@ -83,7 +83,7 @@ def ridge_with_histavg(features, demand, times, train_end, train_anchors, test_a
     return out
 
 
-def gbm_features(demand, times, weather, train_end, anchors, h, zone_level) -> np.ndarray:
+def gbm_features(demand, times, weather, train_end, anchors, h, zone_level, spatial=None) -> np.ndarray:
     """Feature matrix with one row per (anchor, zone), for target bin anchor + h - 1."""
     z, n = demand.shape[0], len(anchors)
     target = anchors + h - 1
@@ -110,24 +110,29 @@ def gbm_features(demand, times, weather, train_end, anchors, h, zone_level) -> n
         cols.append(np.repeat(weather[anchors - 1, channel].astype(np.float32), z))
     cols.append(np.repeat(np.log1p(demand.sum(axis=0))[anchors - 1].astype(np.float32), z))
     cols.append(np.tile(zone_level.astype(np.float32), n))
+    if spatial is not None:                   # flow-weighted demand of upstream and downstream zones
+        for matrix in spatial:
+            neighbour = matrix @ log_d
+            for lag in (1, 2, 3):
+                cols.append(per_zone(neighbour[:, anchors - lag]))
     return np.column_stack(cols)
 
 
 def gbm_predictions(demand, times, weather, train_end, train_anchors, test_anchors, horizons,
-                    stride: int = 3, max_iter: int = 200) -> np.ndarray:
+                    stride: int = 3, max_iter: int = 200, spatial=None) -> np.ndarray:
     from sklearn.ensemble import HistGradientBoostingRegressor
     z = demand.shape[0]
     zone_level = np.log1p(demand[:, :train_end]).mean(axis=1)
     fit_anchors = train_anchors[::stride]
     out = np.empty((len(test_anchors), z, len(horizons)), dtype=np.float32)
     for j, h in enumerate(horizons):
-        x_tr = gbm_features(demand, times, weather, train_end, fit_anchors, h, zone_level)
+        x_tr = gbm_features(demand, times, weather, train_end, fit_anchors, h, zone_level, spatial)
         y_tr = demand[:, fit_anchors + h - 1].T.reshape(-1)
         model = HistGradientBoostingRegressor(loss="poisson", learning_rate=0.1, max_iter=max_iter,
                                               max_leaf_nodes=63, min_samples_leaf=50,
                                               early_stopping=False, random_state=7)
         model.fit(x_tr, y_tr)
-        x_te = gbm_features(demand, times, weather, train_end, test_anchors, h, zone_level)
+        x_te = gbm_features(demand, times, weather, train_end, test_anchors, h, zone_level, spatial)
         out[:, :, j] = model.predict(x_te).reshape(len(test_anchors), z)
         print(f"[checks] gbm horizon {h * 5} min fitted on {len(y_tr):,} rows", flush=True)
     return out
@@ -191,7 +196,7 @@ def main() -> None:
     parser.add_argument("--out", default="results/accuracy_checks.json")
     parser.add_argument("--window", type=int, default=48)
     parser.add_argument("--merge", action="store_true", help="add the extra models to predictions.npz and forecast_metrics.json")
-    parser.add_argument("--extras", default="ridge_hist,gbm", help="comma-separated: ridge_hist, gbm")
+    parser.add_argument("--extras", default="ridge_hist,gbm", help="comma-separated: ridge_hist, gbm, gbm_spatial")
     args = parser.parse_args()
 
     p = np.load(args.predictions)
@@ -218,6 +223,11 @@ def main() -> None:
         if extra == "ridge_hist":
             cached[extra] = ridge_with_histavg(features, demand, times, train_end, train_anchors, anchors,
                                                args.window, horizons)
+        elif extra == "gbm_spatial":
+            graph = (np.load(os.path.join(args.data_dir, "A_in.npy")).astype(np.float64),
+                     np.load(os.path.join(args.data_dir, "A_out.npy")).astype(np.float64))
+            cached[extra] = gbm_predictions(demand, times, weather, train_end, train_anchors, anchors,
+                                            horizons, spatial=graph)
         elif extra == "gbm":
             cached[extra] = gbm_predictions(demand, times, weather, train_end, train_anchors, anchors, horizons)
         os.makedirs(os.path.dirname(os.path.abspath(cache_path)), exist_ok=True)

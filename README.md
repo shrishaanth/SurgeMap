@@ -75,17 +75,23 @@ RMSE in pickups per zone per 5-minute bin (lower is better), from `artifacts/for
 
 | Model | 5 min | 15 min | 30 min | 60 min |
 |-------|-------|--------|--------|--------|
-| **Gradient boosting** | **1.429** | **1.523** | **1.558** | **1.610** |
+| **ST-GNN, calibrated** | **1.402** | **1.468** | **1.506** | **1.561** |
+| Gradient boosting, calibrated | 1.422 | 1.506 | 1.539 | 1.577 |
+| Gradient boosting | 1.429 | 1.523 | 1.558 | 1.610 |
 | ST-GNN | 1.449 | 1.546 | 1.618 | 1.726 |
 | Ridge + time-of-day average | 1.476 | 1.575 | 1.602 | 1.661 |
 | Ridge regression | 1.467 | 1.580 | 1.681 | 1.844 |
 | Persistence | 1.716 | 1.889 | 2.016 | 2.189 |
 | Historical average | 1.701 | 1.702 | 1.703 | 1.706 |
 
-The ST-GNN is clearly better than persistence (16 to 21%), but **it is not the best model**. A gradient-boosted
-model with simple features (recent lags, the same time yesterday and last week, calendar, weather, citywide
-demand) matches or beats it at every horizon. `scripts/accuracy_checks.py` puts 95% block-bootstrap intervals on
-the gap, RMSE(other) minus RMSE(ST-GNN), where positive means the ST-GNN is better:
+"Calibrated" means two corrections fitted on the validation split only and applied identically to both models
+(`scripts/calibrate_forecasts.py`): a per-zone, per-horizon bias correction, then a per-horizon blend with the
+time-of-day average.
+
+**As trained, the ST-GNN is not the best model.** It beats persistence by 16 to 21%, but a gradient-boosted model
+with simple features (recent lags, the same time yesterday and last week, calendar, weather, citywide demand)
+matches or beats it at every horizon. 95% block-bootstrap intervals on RMSE(other) minus RMSE(ST-GNN), positive
+meaning the ST-GNN is better (`scripts/accuracy_checks.py`):
 
 | Other model | 5 min | 15 min | 30 min | 60 min |
 |-------------|-------|--------|--------|--------|
@@ -94,27 +100,35 @@ the gap, RMSE(other) minus RMSE(ST-GNN), where positive means the ST-GNN is bett
 | Ridge + time-of-day average | +0.027 [+0.003, +0.053] | +0.029 [-0.004, +0.062] | -0.016 [-0.049, +0.017] | -0.065 [-0.097, -0.035] |
 | Gradient boosting | -0.020 [-0.050, +0.005] | -0.023 [-0.048, +0.004] | -0.060 [-0.093, -0.025] | -0.116 [-0.167, -0.062] |
 
-Reading it honestly:
+**After the same calibration, the ST-GNN is ahead of gradient boosting**: +0.020 [+0.000, +0.039] at 5 minutes,
++0.038 [+0.018, +0.061] at 15, +0.033 [+0.013, +0.054] at 30 and +0.016 [-0.005, +0.038] at 60. The lead is
+significant at 15 and 30 minutes, borderline at 5, and not significant at 60.
 
-- The ST-GNN's lead over a per-zone ridge regression is statistically indistinguishable from zero at 5 and 15
-  minutes, and clear only at 30 and 60 minutes.
-- At 60 minutes it ties a plain time-of-day average, and a linear model that is simply given that average as an
-  input beats it. The ST-GNN only sees the last 4 hours, so it misses the daily and weekly pattern.
-- Gradient boosting is better at every horizon, significantly so from 30 minutes on (6.7% lower RMSE at 60 minutes).
-  On this data the graph structure has not been shown to add accuracy beyond what simple features provide. A
-  controlled test (the same network with the graph removed) has not been run.
-- Spatial information is not the missing piece here. Giving the gradient-boosted model flow-weighted upstream
-  and downstream neighbour demand (the same flows that define the ST-GNN's graph) leaves its error unchanged:
-  RMSE 1.428, 1.536, 1.563, 1.608 against 1.429, 1.523, 1.558, 1.610 (`results/spatial_check.json`). A zone's own
-  history, the time of day and citywide demand already carry the useful signal at 5 to 60 minutes; most zones
-  are quiet, and the busy ones in Manhattan move together with the city as a whole. This is evidence about one
-  kind of spatial signal (trip-flow neighbours, one hop), not a proof that no graph could help.
+### Why the ST-GNN trails as trained
 
-Hotspot ranking, as the mean number of the 5 busiest zones also among the 5 predicted: gradient boosting 3.18 to
-3.04 and the ST-GNN 3.16 to 2.92 across 5 to 60 minutes, against 2.93 to 2.55 for persistence. The top-3 hit rate
-is 0.86 to 0.94 for every model, because the busiest zones barely change, so it does not separate them. The
-training script's inline hotspot numbers rank zones by standardised demand rather than raw counts and are not
-comparable.
+`scripts/diagnose_stgnn.py` examines the trained network using inference only (`results/stgnn_diagnostics.json`):
+
+- **It under-predicts total pickups by 8.5 to 12%** (gradient boosting: 2 to 4%). It is trained on log-scale
+  demand, which converts back to something closer to a median than a mean, and the test days are about 9% busier
+  than the training average for the same weekday and time.
+- **It has no notion of which zone it is forecasting.** All zones share one set of weights and it sees only the
+  last 4 hours, so it cannot learn a zone's own daily profile. Its gap to gradient boosting at 60 minutes is at
+  night and in the evening, where it is also worse than a plain time-of-day average.
+- **Its loss does not match the evaluation.** On the metric it was trained on (per-zone standardised log demand) it
+  is the best model: 0.715 against 0.721 for ridge and about 0.90 for gradient boosting. But that loss weights all
+  258 zones equally, while 86% of the squared error in pickups sits in the 30 busiest zones.
+- **It underfits.** Training error (0.722) is close to validation error (0.739) and validation was still improving
+  at epoch 47. The training loader also did not shuffle its batches.
+- **It does rely on the graph**: switching the graph off at inference raises RMSE by 7 to 19%. That shows it leans
+  on neighbouring zones; it does not show that the same network trained without a graph would be worse. Giving the
+  gradient-boosted model flow-weighted neighbour demand left its error unchanged (`results/spatial_check.json`).
+
+The calibration patches the first two points from outside the network. Retraining with these fixed inside the
+network has not been done yet.
+
+Hotspot ranking, as the mean number of the 5 busiest zones also among the 5 predicted, across 5 to 60 minutes:
+calibrated ST-GNN 3.19 to 3.08, calibrated gradient boosting 3.18 to 3.06, persistence 2.93 to 2.55. The top-3 hit
+rate is 0.86 to 0.94 for every model, because the busiest zones barely change, so it does not separate them.
 
 ### Repositioning
 
@@ -131,28 +145,31 @@ about 0.1 minute (0.16 at most).
 | Ridge + time-of-day average | 57.6 / 9.30 | 41.2 / 7.16 | 29.1 / 5.60 | 15.0 / 3.76 |
 | ST-GNN | 57.7 / 9.33 | 41.3 / 7.18 | 28.4 / 5.51 | 14.6 / 3.70 |
 | Gradient boosting | 57.8 / 9.34 | 40.6 / 7.09 | 27.2 / 5.34 | 12.9 / 3.40 |
+| Gradient boosting, calibrated | 57.3 / 9.27 | 40.5 / 7.08 | 26.7 / 5.28 | 12.9 / 3.39 |
+| **ST-GNN, calibrated** | 57.1 / 9.25 | 40.0 / 7.01 | 26.7 / 5.28 | 12.8 / 3.36 |
 | Oracle (true demand) | 56.8 / 9.17 | 40.3 / 6.98 | 25.7 / 5.05 | 12.2 / 3.18 |
 
 ![Rider wait vs empty driving](results/tradeoff.png)
 
 - Forecast-driven repositioning clearly helps once the fleet is large enough: at 2,000 vehicles unmet requests fall
-  from 42.8% to 26 to 29% and mean wait from 7.6 to about 5.4 minutes. At 1,000 vehicles there is little to gain.
-- A better forecast gives a better policy. Gradient boosting is the best forecast-driven policy at 2,000 and 3,000
-  vehicles (5.34 and 3.40 minutes), level with persistence on wait while driving about 13% less empty at 2,000
-  vehicles (1.13M vs 1.29M vehicle-minutes). The ST-GNN is behind both (5.51 and 3.70).
-- Comparing at equal driving cost along the `theta` sweep at 2,000 vehicles, waiting less than persistence by:
-  gradient boosting **0.28 minutes (77% of the improvement perfect demand knowledge would give)**, the ST-GNN
-  0.17 minutes (47%). Comparing at equal `theta` is misleading because policies drive different amounts.
+  from 42.8% to 26 to 29% and mean wait from 7.6 to about 5.3 minutes. At 1,000 vehicles there is little to gain.
+- A better forecast gives a better policy. Comparing at equal driving cost along the `theta` sweep at 2,000
+  vehicles, the wait saved relative to a persistence-driven policy is 0.30 minutes for the calibrated ST-GNN (84%
+  of what perfect demand knowledge would give), 0.30 for calibrated gradient boosting (83%), 0.28 for gradient
+  boosting (77%) and 0.17 for the ST-GNN as trained (47%). Comparing at equal `theta` is misleading because
+  policies drive different amounts.
+- The two calibrated models are indistinguishable as repositioning policies, even though the ST-GNN forecasts
+  slightly better. Both reach persistence's rider outcomes while driving about 13% less empty at 2,000 vehicles.
 - Perfect foresight beats persistence by only 0.2 to 0.35 minutes of wait at 2,000 to 3,000 vehicles, which bounds
   how much any forecaster can add at a 15-minute decision horizon.
 
 ### What this means
 
-The project's useful findings are that forecasts do improve repositioning, and that the choice of forecaster
-matters, but that the ST-GNN is not the right tool here: a much simpler, faster model is more accurate and gives
-a better policy. The most likely route to a better ST-GNN is to give it the daily and weekly pattern (as a
-residual over the time-of-day average), the weather channels, and more months of training data; none of that has
-been run.
+Forecasts improve repositioning, and forecast quality carries through to the policy. The ST-GNN as first trained
+was beaten by a simpler model, for reasons that turned out to be about its training setup rather than about graphs:
+bias from the log scale, no zone-specific daily profile, a loss that does not match the evaluation, and too little
+training. Correcting the first two from outside makes it the most accurate forecaster here, by a small margin that
+is significant at 15 and 30 minutes. Whether the graph itself is what earns that margin is still untested.
 
 ---
 
@@ -171,7 +188,7 @@ between zones, given the forecast demand over the next 15 minutes. It minimises
 `theta` sets the trade-off between fleet driving and rider waiting.
 
 **Evaluation** (`scripts/run_evaluation.py`). Policies driven by persistence, historical average, ridge, ridge
-with the time-of-day average, gradient boosting, the ST-GNN and the true demand ("oracle", an upper bound) are compared with dispatch alone, over several fleet sizes
+with the time-of-day average, gradient boosting, the ST-GNN (both as trained and calibrated) and the true demand ("oracle", an upper bound) are compared with dispatch alone, over several fleet sizes
 and seeds, with a `theta` sweep to trace each policy's wait vs driving curve. Policies are also compared with
 persistence at equal driving cost, so a policy that simply moves fewer vehicles is not mistaken for a worse one.
 
@@ -198,11 +215,14 @@ python scripts\export_predictions.py --checkpoint multihorizon_265_clipped.pt
 # 4. Add the extra baselines (ridge + time-of-day average, gradient boosting) and the bootstrap intervals
 python scripts\accuracy_checks.py --merge
 
-# 5. Run the repositioning study and draw the plots (a few minutes on 10 cores)
+# 5. Add the validation-calibrated ST-GNN and boosted model
+python scripts\calibrate_forecasts.py
+
+# 6. Run the repositioning study and draw the plots (a few minutes on 10 cores)
 python scripts\run_evaluation.py --workers 10
 python scripts\plot_results.py
 
-# 6. Explore everything in the app
+# 7. Explore everything in the app
 python -m streamlit run app\streamlit_app.py
 ```
 
@@ -224,6 +244,8 @@ SurgeMap/
 │   ├── hotspot_eval.py          Top-k hotspot evaluation of a checkpoint
 │   ├── export_predictions.py    Count-space forecasts for the simulator and app
 │   ├── accuracy_checks.py       Extra baselines, bootstrap intervals, merge into the forecasts
+│   ├── calibrate_forecasts.py   Validation-fitted bias correction and blend for both models
+│   ├── diagnose_stgnn.py        Where the ST-GNN's error comes from
 │   ├── simulator.py             Fleet simulator with dispatch matching
 │   ├── reposition.py            Forecast-driven LP repositioning policy
 │   ├── run_evaluation.py        Policy comparison and trade-off sweep

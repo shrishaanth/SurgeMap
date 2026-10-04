@@ -15,3 +15,5 @@ __pycache__/
 
 # Intermediate per-episode cache written by scripts/run_evaluation.py
 /results/*.runs.jsonl
+
+.ipynb_checkpoints/

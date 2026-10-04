@@ -1,208 +1,158 @@
 # SurgeMap
 
-**NYC Taxi Demand Forecasting & Fleet Repositioning using Spatio-Temporal Graph Neural Networks**
+**NYC taxi demand forecasting and fleet repositioning with a spatio-temporal graph neural network**
 
-SurgeMap predicts taxi demand across 253 NYC taxi zones at 5-minute intervals using a multi-horizon Spatio-Temporal Graph Neural Network (ST-GNN). By forecasting demand surges 5, 15, 30, and 60 minutes ahead, fleet operators can proactively reposition vehicles to anticipated hotspots, reducing passenger wait times and increasing revenue.
+SurgeMap forecasts how many taxi pickups each of New York's taxi zones will see over the next 5, 15, 30 and 60
+minutes, then tests in a simulator whether using those forecasts to pre-position idle vehicles shortens rider
+waits. It is part of the [FleetMg](https://github.com/shris-xyz/FleetMg) fleet management project.
 
-Part of the [FleetMg](https://github.com/shris-xyz/FleetMg) (Fleet Management) ecosystem.
+The repository contains:
 
----
+- a **forecaster**: a directed-graph ST-GNN trained on January 2024 NYC yellow-taxi trips, with persistence,
+  historical-average and per-zone ridge baselines
+- a **fleet simulator** that replays real pickups against a simulated fleet with nearest-vehicle dispatch
+- a **repositioning policy**: a small min-cost-flow linear program driven by any forecast
+- an **evaluation** of policies across fleet sizes, seeds and a cost trade-off sweep
+- a **Streamlit app** to explore forecasts and run the simulator
 
-## Key Features
-
-- **Multi-Horizon Forecasting** — Predicts demand at 5, 15, 30, and 60-minute horizons simultaneously
-- **Directed Graph Convolutions** — Explicitly models inbound (`A_in`) and outbound (`A_out`) taxi flows as separate adjacency matrices
-- **Hotspot Ranking Metrics** — Evaluates top-k precision, recall, and hit rate for fleet repositioning relevance
-- **Memory-Efficient Preprocessing** — Chunked ingestion of NYC TLC yellow taxi CSV data
-- **Reproducible Pipeline** — Centralized config (`config.yaml`), fixed seeds, and serialized checkpoints
-- **Dual Implementation** — Lightweight NumPy baselines alongside PyTorch training with autograd
-
----
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|-----------|
-| Language | Python 3.11+ |
-| Deep Learning | PyTorch >= 2.2 |
-| Data Processing | NumPy, Pandas |
-| Scientific Computing | SciPy |
-| Configuration | PyYAML |
-| Testing | pytest |
-| Build Automation | Make |
+> **Status:** the data pipeline was corrected after the original extract turned out to be truncated (see
+> [Data](#data)). The model is being retrained on the corrected data, so this README intentionally reports no
+> accuracy numbers yet; they will be added from `artifacts/forecast_metrics.json` and `results/evaluation.json`.
 
 ---
 
-## Architecture
+## Data
 
-```
-Raw NYC Taxi CSV
-       │
-       ▼
-  preprocess.py          Memory-efficient chunked ingestion → graph + features
-       │
-       ▼
-  train_multihorizon_torch.py   Multi-horizon ST-GNN (shared spatial-temporal encoder)
-       │
-       ▼
-  hotspot_eval.py        Top-k ranking evaluation on held-out test split
-       │
-       ▼
-  multihorizon_baseline.py   Persistence and per-zone ridge regression baselines
-```
+- **Source**: [NYC TLC Yellow Taxi Trip Records, January 2024](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
+  (the official parquet file, 2,964,624 rows; 2,927,173 pass the validity filters)
+- **Zones**: 258 taxi zones with at least one pickup; five of them have fewer than five trips in the month
+- **Time grid**: 8,928 five-minute bins covering the whole month, none empty
+- **Split**: chronological 70% train (to 22 Jan 16:45), 15% validation, 15% test (27 Jan 08:20 to 31 Jan 23:55)
+- **Graph**: directed row-normalised flow matrices `A_out` and `A_in` from pickup-to-dropoff counts
 
-### Model Architecture
+**Correction note.** Earlier versions of this project were built from a CSV that stopped at 29 Jan 21:38 and
+held about 5% fewer trips than the official file, so the last two days of the test split were empty. Every
+metric produced from that extract was inflated and has been discarded. The pipeline now reads the official
+parquet file (`data/yellow_tripdata_2024-01.parquet`; `data/` is not tracked).
 
-The multi-horizon ST-GNN consists of:
+### Features per zone and time step
 
-1. **Spatial Encoder** — `DirectedGraphConv` layers that separately mix information via `A_out` and `A_in` adjacency matrices, plus learned self-loop projections
-2. **Temporal Encoder** — 1-layer GRU that captures temporal dependencies across a 4-hour observation window (48 bins)
-3. **Multi-Horizon Heads** — Separate linear prediction heads for each forecast horizon (1, 3, 6, 12 bins ahead), sharing the spatial-temporal encoder
-
-### Features per Zone per Timestep
-
-| Feature | Description |
+| Channel | Description |
 |---------|-------------|
-| `log_demand_zscore` | Log(1 + pickups), standardized on training split |
-| `hour_sin` / `hour_cos` | Cyclic time-of-day encoding |
-| `weekday_sin` / `weekday_cos` | Cyclic day-of-week encoding |
-| `is_weekend` | Binary weekend flag |
+| `log_demand_zscore` | log(1 + pickups), standardised per zone on the training split, clipped to ±6 |
+| `hour_sin`, `hour_cos` | cyclic time of day |
+| `weekday_sin`, `weekday_cos` | cyclic day of week |
+| `is_weekend` | weekend flag |
+| `log_dropoff_zscore` | log(1 + dropoffs), standardised and clipped like demand |
 
 ---
 
-## Dataset
+## Model
 
-- **Source**: [NYC TLC Yellow Taxi Trip Records — January 2024](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
-- **Zones**: 253 active NYC taxi zones (out of 265; 12 zones had no valid data)
-- **Timesteps**: 8,928 five-minute bins covering the full month
-- **Split**: Chronological 70% train / 15% validation / 15% test
-- **Graph**: Directed adjacency matrices derived from actual pickup/dropoff flows
+1. **Spatial encoder**: `DirectedGraphConv` mixes neighbour features through `A_out` and `A_in` separately, plus
+   a learned self-loop projection.
+2. **Temporal encoder**: a one-layer GRU over a 48-bin (4 hour) window.
+3. **Multi-horizon heads**: one linear head per horizon (1, 3, 6, 12 bins ahead) on the shared encoder.
+
+Trained with AdamW, MSE loss, gradient clipping and early stopping on validation RMSE (seed 7).
+
+### Baselines
+
+| Baseline | Description |
+|----------|-------------|
+| Persistence | the last observed bin |
+| Historical average | mean training demand for the same zone, weekday and time of day |
+| Ridge regression | one ridge model per zone on the flattened 48-bin window |
 
 ---
 
-## Installation
+## Repositioning study
 
-```powershell
-# Clone the repository
-git clone https://github.com/shris-xyz/FleetMg.git
-cd FleetMg/SurgeMap
+**Simulator** (`scripts/simulator.py`). Real pickups of the test window are replayed against a fleet of idle
+vehicles placed in proportion to demand. A request is served by an idle vehicle in its own zone with no wait, or
+by the nearest idle vehicle within 15 minutes, whose drive time is the rider's wait. Otherwise it is lost. A
+served trip returns its vehicle to a destination drawn from the observed flows after the observed mean trip
+duration. Zone-to-zone driving times are shortest paths over the observed mean trip durations, since most zone
+pairs have no direct trips.
 
-# Create virtual environment (Python 3.11 recommended)
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+**Policy** (`scripts/reposition.py`). Every 15 minutes a linear program decides how many idle vehicles to send
+between zones, given the forecast demand over the next 15 minutes. It minimises
+`theta × vehicle driving minutes + rider wait minutes + 15 × unserved requests`. Any forecast can drive it;
+`theta` sets the trade-off between fleet driving and rider waiting.
 
-# Install dependencies
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
+**Evaluation** (`scripts/run_evaluation.py`). Policies driven by persistence, historical average, ridge, the
+ST-GNN and the true demand ("oracle", an upper bound) are compared with dispatch alone, over several fleet sizes
+and seeds, with a `theta` sweep to trace each policy's wait vs driving curve. Policies are also compared with
+persistence at equal driving cost, so a policy that simply moves fewer vehicles is not mistaken for a worse one.
+
+The fleet is synthetic, because public trip data has no vehicle positions. Read the study as a comparison between
+policies, not as a prediction of real-world performance.
 
 ---
 
 ## Usage
 
-### Quick Start (265-Zone Pipeline)
-
 ```powershell
-# 1. Preprocess all 253 NYC zones from raw CSV
-python scripts\preprocess.py --input data\yellow_tripdata_2024-01.csv --out real_processed_265 --month 2024-01 --all-zones
+# Install (Python 3.11+; a virtual environment is recommended)
+python -m pip install -r requirements.txt
 
-# 2. Train multi-horizon ST-GNN
-python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --window 48 --epochs 50 --hidden 64 --batch-size 128 --lr 0.001 --patience 8 --out multihorizon_stgnn_checkpoint_265.pt
+# 1. Preprocess the official parquet file into real_processed_265/
+python scripts\preprocess.py --input data\yellow_tripdata_2024-01.parquet --out real_processed_265 --month 2024-01 --all-zones
 
-# 3. Evaluate baselines
-python scripts\multihorizon_baseline.py --data-dir real_processed_265 --window 48 --horizons 1,3,6,12 --out multihorizon_baselines_265_clipped.json
+# 2. Train the multi-horizon ST-GNN (about 3-4 hours on a CPU, a few minutes on a GPU)
+python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --window 48 --epochs 50 --hidden 64 --batch-size 128 --lr 0.001 --patience 8 --out multihorizon_265_clipped.pt
 
-# 4. Evaluate trained model hotspot performance
-python scripts\hotspot_eval.py --checkpoint multihorizon_265_clipped.pt --data-dir real_processed_265 --horizons 1,3,6,12 --topk 3,5 --out hotspot_265_clipped.json
+# 3. Export count-space forecasts and baselines for the test split
+python scripts\export_predictions.py --checkpoint multihorizon_265_clipped.pt
+
+# 4. Run the repositioning study and draw the plots (a few minutes on 10 cores)
+python scripts\run_evaluation.py --workers 10
+python scripts\plot_results.py
+
+# 5. Explore everything in the app
+python -m streamlit run app\streamlit_app.py
 ```
 
-### Makefile Targets
-
-```powershell
-make install           # Install dependencies
-make preprocess-265    # Preprocess all zones from the raw CSV
-make train-multi-265   # Train multi-horizon ST-GNN
-make test              # Run test suite
-make smoke             # Quick dependency check
-```
+The same steps are available as `make preprocess-265`, `make train-multi-265`, `make export`, `make evaluate`,
+`make plots`, `make app` and `make test`.
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
 SurgeMap/
-├── README.md                        # Project documentation
-├── config.yaml                       # Central configuration (seed, data, forecast, simulator)
-├── requirements.txt                  # Python dependencies
-├── Makefile                          # Build automation
-├── real_processed_265/               # Preprocessed data for 253 NYC zones
-│   ├── metadata.json                 # Dataset metadata (zones, splits, features, shapes)
-│   ├── demand.npy                    # Raw pickup counts [253 zones × 8928 bins]
-│   ├── features_clipped.npy          # Outlier-clipped features (used by training/eval)
-│   ├── A_out.npy                     # Outgoing adjacency (directed) [253 × 253]
-│   ├── A_in.npy                      # Incoming adjacency (directed) [253 × 253]
-│   └── zone_ids.npy                  # NYC zone IDs (253 zones)
-│   # A_sym/adjacency/edge_index/travel_time/times/features(unclipped) are regenerable via
-│   # preprocess.py but not committed — unused by the current training/eval scripts.
+├── app/                         Streamlit app (pages, helpers, trimmed zone polygons)
 ├── scripts/
-│   ├── preprocess.py                 # Raw CSV → tensors + graph
-│   ├── stgnn_models.py               # Pure NumPy ST-GNN (baseline)
-│   ├── train_stgnn_torch.py          # Single-horizon PyTorch ST-GNN trainer
-│   ├── train_multihorizon_torch.py   # Multi-horizon PyTorch ST-GNN trainer
-│   ├── multihorizon_baseline.py      # Persistence + ridge regression baselines
-│   └── hotspot_eval.py               # Top-k hotspot ranking evaluation
-├── multihorizon_265_clipped.pt       # Trained multi-horizon ST-GNN checkpoint
-├── multihorizon_265_clipped_metrics.json
-├── multihorizon_baselines_265_clipped.json
-└── hotspot_265_clipped.json
+│   ├── preprocess.py            Raw trips (CSV or parquet) -> tensors and graph
+│   ├── train_multihorizon_torch.py   Multi-horizon ST-GNN trainer
+│   ├── train_stgnn_torch.py     Single-horizon trainer; defines the graph convolution
+│   ├── multihorizon_baseline.py Persistence and ridge baselines (z-score space)
+│   ├── hotspot_eval.py          Top-k hotspot evaluation of a checkpoint
+│   ├── export_predictions.py    Count-space forecasts for the simulator and app
+│   ├── simulator.py             Fleet simulator with dispatch matching
+│   ├── reposition.py            Forecast-driven LP repositioning policy
+│   ├── run_evaluation.py        Policy comparison and trade-off sweep
+│   ├── plot_results.py          Plots of the study
+│   ├── prepare_zones.py         Trims the NYC taxi zone polygons for the app
+│   ├── build_dropoff.py, build_weather.py, stgnn_models.py   Auxiliary tools
+├── tests/                       pytest suite
+├── real_processed_265/          Preprocessed arrays (demand, features, graph, metadata)
+├── notebooks/                   Feature experiments
+└── config.yaml                  Reference settings (not read at runtime)
 ```
 
 ---
 
-## Model Performance
+## Limitations
 
-Trained checkpoint (`multihorizon_265_clipped.pt`): 50 epochs, hidden=64, batch=128 (seed=7, deterministic)
-
-Hotspot numbers below are from `scripts/hotspot_eval.py`, the standalone evaluation script — treat these as
-authoritative over any hit-rate figure the training script prints inline, which has a known discrepancy at
-the 60-minute horizon (see `scripts/train_multihorizon_torch.py`'s `scores()`; it over-reports at h=12).
-
-| Horizon | Test RMSE | Hotspot Top-3 Hit Rate |
-|---------|-----------|-------------------------|
-| 5 min   | 0.534     | 33.4%                   |
-| 15 min  | 0.543     | 36.0%                   |
-| 30 min  | 0.544     | 18.9%                   |
-| 60 min  | 0.575     | 15.3%                   |
-
-Compared against baselines (`scripts/multihorizon_baseline.py`) on the same test split:
-
-| Horizon | Persistence RMSE | Ridge RMSE | ST-GNN RMSE | ST-GNN vs. Ridge |
-|---------|-------------------|------------|-------------|------------------|
-| 5 min   | 0.724             | 0.549      | 0.534       | 0.4% better      |
-| 15 min  | 0.727             | 0.562      | 0.543       | 2.1% better      |
-| 30 min  | 0.729             | 0.584      | 0.544       | 5.8% better      |
-| 60 min  | 0.738             | 0.638      | 0.575       | 9.4% better      |
-
-The ST-GNN beats the naive persistence baseline by ~22-25% RMSE at every horizon. Its edge over plain ridge
-regression is thin at short horizons (5 min) and grows at longer horizons (30-60 min), where the graph's
-cross-zone mixing and the GRU's sequential memory add more value than a flattened-window linear model can capture.
-
----
-
-## Reproducibility
-
-- Fixed random seed (`7`) across Python, NumPy, and PyTorch
-- Configuration centralized in `config.yaml` and serialized into checkpoints
-- Chronological data splits prevent future leakage
-- All preprocessing artifacts (graph, features, scaler) versioned alongside checkpoints
-
----
-
-
----
+- One month of data, so seasonality and holidays are not covered.
+- The flow graph is built from the whole month, including the test period; this is a mild form of leakage.
+- Observed pickups are what taxis actually served, which understates true demand where supply was short.
+- The repositioning study uses a synthetic fleet, a simple dispatch rule and lost (not queued) requests.
+- Only yellow taxis are included.
 
 ## Acknowledgements
 
-- NYC Taxi & Limousine Commission for the [TLC Trip Record Data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
-- Built as part of the FleetMg fleet management research project
+- NYC Taxi & Limousine Commission for the trip record data
+- NYC Open Data for the taxi zone boundaries

@@ -20,8 +20,9 @@ def render() -> None:
     c1, c2, c3 = st.columns(3)
     c1.metric("Zones forecast", f"{len(d['zone_ids'])}")
     c2.metric("Test forecasts", f"{metrics['n_anchors']:,}")
-    if "stgnn" in models and "persistence" in models:
-        gain = 100 * (1 - models["stgnn"]["rmse"][j] / models["persistence"]["rmse"][j])
+    best = "stgnn_cal" if "stgnn_cal" in models else "stgnn"
+    if best in models and "persistence" in models:
+        gain = 100 * (1 - models[best]["rmse"][j] / models["persistence"]["rmse"][j])
         c3.metric(f"RMSE vs persistence ({horizons[j] * 5} min)", f"-{gain:.0f}%")
 
     st.markdown("""
@@ -37,9 +38,10 @@ def render() -> None:
     st.markdown("""
 - The test window is the **last 15% of the month**; models never saw it during fitting. Data comes from the
   official NYC TLC trip file.
-- The ST-GNN clearly beats persistence at every horizon, but a gradient-boosted model with simple lag, calendar
-  and weather features is at least as accurate at every horizon and clearly better beyond 30 minutes. The graph
-  network is therefore not justified by accuracy alone; the Forecast accuracy page shows the comparison.
+- As first trained, the ST-GNN beats persistence but is beaten by a gradient-boosted model with simple features.
+  It under-predicts demand and lacks each zone's daily profile. After the same validation-fitted calibration is
+  applied to both, the ST-GNN is the most accurate model here, by a small margin that is statistically clear at
+  15 and 30 minutes. Whether the graph itself earns that margin has not been tested.
 - Repositioning results come from a **simulation**: the trips are real but the fleet is synthetic, because
   public trip data has no vehicle positions. Riders are matched to the nearest idle vehicle within 15 minutes,
   and requests with none are lost. Compare policies with each other rather than reading absolute numbers as

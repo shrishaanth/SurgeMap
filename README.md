@@ -120,11 +120,12 @@ significant at 15 and 30 minutes, borderline at 5, and not significant at 60.
 - **It underfits.** Training error (0.722) is close to validation error (0.739) and validation was still improving
   at epoch 47. The training loader also did not shuffle its batches.
 - **It does rely on the graph**: switching the graph off at inference raises RMSE by 7 to 19%. That shows it leans
-  on neighbouring zones; it does not show that the same network trained without a graph would be worse. Giving the
-  gradient-boosted model flow-weighted neighbour demand left its error unchanged (`results/spatial_check.json`).
+  on neighbouring zones. A later ablation confirmed the graph helps: the same network trained without it is 2 to 4%
+  worse (see [Outcome of the retrain](#outcome-of-the-retrain)). Giving the gradient-boosted model flow-weighted
+  neighbour demand, by contrast, left its error unchanged (`results/spatial_check.json`).
 
 The calibration patches the first two points from outside the network. The trainer has options to address all
-four inside it (see [Retraining the ST-GNN](#retraining-the-st-gnn)); those runs have not been done yet.
+four inside it (see [Retraining the ST-GNN](#retraining-the-st-gnn)); that retrain did not beat the calibrated model.
 
 Hotspot ranking, as the mean number of the 5 busiest zones also among the 5 predicted, across 5 to 60 minutes:
 calibrated ST-GNN 3.19 to 3.08, calibrated gradient boosting 3.18 to 3.06, persistence 2.93 to 2.55. The top-3 hit
@@ -169,7 +170,8 @@ Forecasts improve repositioning, and forecast quality carries through to the pol
 was beaten by a simpler model, for reasons that turned out to be about its training setup rather than about graphs:
 bias from the log scale, no zone-specific daily profile, a loss that does not match the evaluation, and too little
 training. Correcting the first two from outside makes it the most accurate forecaster here, by a small margin that
-is significant at 15 and 30 minutes. Whether the graph itself is what earns that margin is still untested.
+is significant at 15 and 30 minutes. A no-graph ablation shows the graph contributes 2 to 4% of accuracy to the
+network. A retrain that built the fixes into the network did not beat the calibrated original.
 
 ---
 
@@ -246,11 +248,11 @@ original command still reproduces the shipped model.
 | `--no-graph` | remove the neighbour terms (ablation) | tests whether the graph helps |
 
 ```powershell
-# Improved recipe, about 5 hours on a CPU for 80 epochs (minutes on a GPU)
-python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --window 48 --epochs 80 --hidden 64 --batch-size 128 --lr 0.001 --patience 12 --shuffle --prior histavg --zone-dim 8 --weather --loss-power 1 --out multihorizon_v2.pt
+# Recipe as run (batch size 32 fits a 15 GB GPU; early stopping ended both runs before epoch 30)
+python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --window 48 --epochs 80 --hidden 64 --batch-size 32 --lr 0.001 --patience 12 --shuffle --prior histavg --zone-dim 8 --weather --loss-power 1 --out multihorizon_v2.pt
 
 # The same recipe without the graph, to measure what the graph contributes
-python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --window 48 --epochs 80 --hidden 64 --batch-size 128 --lr 0.001 --patience 12 --shuffle --prior histavg --zone-dim 8 --weather --loss-power 1 --no-graph --out multihorizon_v2_nograph.pt
+python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --window 48 --epochs 80 --hidden 64 --batch-size 32 --lr 0.001 --patience 12 --shuffle --prior histavg --zone-dim 8 --weather --loss-power 1 --no-graph --out multihorizon_v2_nograph.pt
 
 # Score both on the test split against the shipped models, with bootstrap intervals
 python scripts\compare_checkpoints.py multihorizon_v2.pt multihorizon_v2_nograph.pt
@@ -261,8 +263,31 @@ Or `make train-v2`, `make train-v2-nograph` and `make compare-v2`. With a weight
 0.72; use `compare_checkpoints.py` for a like-for-like score in pickup counts.
 
 These options do not remove the log-scale bias or the drift in demand level, so the validation calibration still
-applies to a retrained model. Nothing here has been trained to completion yet: a one-epoch smoke run starts at
-the level of the time-of-day average (RMSE 1.64 to 1.71), as expected for a residual model.
+applies to a retrained model. On a 15 GB GPU use `--batch-size 32`; 128 runs out of memory.
+
+### Outcome of the retrain
+
+Both recipes were run once on a Kaggle T4 GPU with batch size 32 (`results/v2_retrain.json`). RMSE in pickups per
+zone per 5-minute bin:
+
+| Model | 5 min | 15 min | 30 min | 60 min |
+|-------|-------|--------|--------|--------|
+| Shipped ST-GNN, calibrated | 1.402 | 1.468 | 1.506 | 1.561 |
+| Retrained, calibrated | 1.524 | 1.535 | 1.545 | 1.558 |
+| Retrained without graph, calibrated | 1.532 | 1.557 | 1.572 | 1.592 |
+| Shipped ST-GNN, as trained | 1.450 | 1.546 | 1.619 | 1.726 |
+| Retrained, as trained | 1.574 | 1.580 | 1.597 | 1.633 |
+| Retrained without graph, as trained | 1.602 | 1.629 | 1.660 | 1.686 |
+
+- **The retrain did not improve on the shipped model.** As trained it is better at 60 minutes (1.633 vs 1.726) but
+  worse at 5 and 15. After calibration it is worse at 5, 15 and 30 minutes and level at 60, so the shipped
+  checkpoint stays. The retrained model's error is almost flat across horizons, which suggests it leans on the
+  time-of-day prior and reacts less to the most recent demand. The recipe changed several things at once, so which
+  change caused that is not known.
+- **The graph helps.** With everything else equal, the network with the graph beats the one without at every
+  horizon as trained: +0.028 [+0.003, +0.056], +0.049 [+0.015, +0.087], +0.063 [+0.016, +0.116] and
+  +0.054 [+0.002, +0.114], about 2 to 4%. After calibration the gap narrows to 0.01 to 0.03 and is significant at 15,
+  30 and 60 minutes. This is one training run per model, so seed-to-seed variation is not measured.
 
 ---
 

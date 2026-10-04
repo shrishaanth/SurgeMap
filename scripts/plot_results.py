@@ -11,14 +11,15 @@ import matplotlib.pyplot as plt
 
 LABELS = {"none": "dispatch only", "persistence": "persistence", "histavg": "historical average",
           "ridge": "ridge", "ridge_hist": "ridge + time-of-day average",
-          "gbm": "gradient boosting", "stgnn": "ST-GNN", "oracle": "oracle (true demand)"}
-COLORS = {"none": "#888888", "persistence": "#1f77b4", "histavg": "#9467bd", "ridge": "#2ca02c", "ridge_hist": "#8c564b", "gbm": "#ff7f0e",
+          "gbm": "gradient boosting", "gbm_cal": "gradient boosting, calibrated",
+          "stgnn": "ST-GNN", "stgnn_cal": "ST-GNN, calibrated", "oracle": "oracle (true demand)"}
+COLORS = {"none": "#888888", "persistence": "#1f77b4", "histavg": "#9467bd", "ridge": "#2ca02c", "ridge_hist": "#8c564b", "gbm": "#ff7f0e", "gbm_cal": "#bc6c00", "stgnn_cal": "#7f0000",
           "stgnn": "#d62728", "oracle": "#000000"}
 
 
 def tradeoff(summary, fleet, out_path):
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    for policy in ("persistence", "stgnn", "gbm", "oracle"):
+    for policy in ("persistence", "stgnn", "stgnn_cal", "gbm", "gbm_cal", "oracle"):
         rows = sorted((r for r in summary if r["policy"] == policy and r["fleet"] == fleet),
                       key=lambda r: r["theta"])
         if len(rows) < 2:
@@ -42,7 +43,7 @@ def tradeoff(summary, fleet, out_path):
 
 def by_fleet(summary, theta, out_path):
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    for policy in ("none", "persistence", "histavg", "ridge", "ridge_hist", "stgnn", "gbm", "oracle"):
+    for policy in ("none", "persistence", "ridge", "stgnn", "gbm", "gbm_cal", "stgnn_cal", "oracle"):
         rows = sorted((r for r in summary if r["policy"] == policy and r["theta"] in (0.0, theta)),
                       key=lambda r: r["fleet"])
         if rows:

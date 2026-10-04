@@ -8,7 +8,7 @@ import streamlit as st
 import data
 from logic import moves_to_arcs
 
-POLICIES = ("gbm", "stgnn", "persistence", "oracle", "histavg", "ridge", "ridge_hist")
+POLICIES = ("stgnn_cal", "gbm_cal", "stgnn", "gbm", "persistence", "oracle", "histavg", "ridge", "ridge_hist")
 WARMUP = 36
 
 
@@ -29,7 +29,7 @@ def study_section() -> None:
     summary = pd.DataFrame(result["summary"])
     fleet = result["config"]["sweep_fleet"]
     st.subheader(f"Study: rider wait vs vehicle driving, {fleet:,} vehicles")
-    sweep = summary[(summary["fleet"] == fleet) & summary["policy"].isin(["persistence", "stgnn", "gbm", "oracle"])].copy()
+    sweep = summary[(summary["fleet"] == fleet) & summary["policy"].isin(["persistence", "stgnn", "stgnn_cal", "gbm", "gbm_cal", "oracle"])].copy()
     sweep["Policy"] = sweep["policy"].map(data.LABELS)
     sweep["kmin"] = sweep["empty_minutes"] / 1e3
     base = summary[(summary["fleet"] == fleet) & (summary["policy"] == "none")]
@@ -54,7 +54,7 @@ def study_section() -> None:
 
     gain = result.get("frontier_gain", {})
     lines = []
-    for model in ("gbm", "stgnn"):
+    for model in ("stgnn_cal", "gbm_cal", "gbm", "stgnn"):
         if model in gain:
             line = f"{data.LABELS[model]}: **{gain[model]['gain']:.2f} min** less wait than persistence"
             if "share_of_oracle_gain" in gain[model]:

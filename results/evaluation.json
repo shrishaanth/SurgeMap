@@ -21,7 +21,9 @@
       "ridge",
       "ridge_hist",
       "gbm",
+      "gbm_cal",
       "stgnn",
+      "stgnn_cal",
       "oracle"
     ],
     "theta": 0.1,
@@ -37,7 +39,9 @@
     "sweep_policies": [
       "persistence",
       "stgnn",
+      "stgnn_cal",
       "gbm",
+      "gbm_cal",
       "oracle"
     ],
     "lookahead": 3,
@@ -124,6 +128,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 1000,
+      "seed": 0,
+      "theta": 0.1,
+      "unmet_rate": 0.5765692700321325,
+      "mean_wait_served": 1.580200744757317,
+      "mean_wait_penalized": 9.317644605330345,
+      "empty_minutes": 509312.1270878315,
+      "reposition_minutes": 205708.15799760818,
+      "moved": 20908.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 1000,
       "seed": 0,
@@ -134,6 +151,19 @@
       "empty_minutes": 510309.0510439873,
       "reposition_minutes": 205221.32214522362,
       "moved": 21102.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 1000,
+      "seed": 0,
+      "theta": 0.1,
+      "unmet_rate": 0.557289761232055,
+      "mean_wait_served": 1.6013182673844863,
+      "mean_wait_penalized": 9.068266410978081,
+      "empty_minutes": 539151.5779230595,
+      "reposition_minutes": 217481.9670073986,
+      "moved": 22104.0,
       "demand": 453746
     },
     {
@@ -228,6 +258,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 1000,
+      "seed": 1,
+      "theta": 0.1,
+      "unmet_rate": 0.5748238000996152,
+      "mean_wait_served": 1.578014726521934,
+      "mean_wait_penalized": 9.293291306303669,
+      "empty_minutes": 513275.29231643677,
+      "reposition_minutes": 208841.53524637222,
+      "moved": 21088.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 1000,
       "seed": 1,
@@ -238,6 +281,19 @@
       "empty_minutes": 507851.47133517265,
       "reposition_minutes": 205045.43668341637,
       "moved": 20934.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 1000,
+      "seed": 1,
+      "theta": 0.1,
+      "unmet_rate": 0.5710661912171127,
+      "mean_wait_served": 1.568259664156301,
+      "mean_wait_penalized": 9.238672459163825,
+      "empty_minutes": 515634.3583858013,
+      "reposition_minutes": 210408.68473005295,
+      "moved": 21400.0,
       "demand": 453746
     },
     {
@@ -332,6 +388,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 1000,
+      "seed": 2,
+      "theta": 0.1,
+      "unmet_rate": 0.5734022999651788,
+      "mean_wait_served": 1.5866030925623384,
+      "mean_wait_penalized": 9.277875729632909,
+      "empty_minutes": 517079.2001338005,
+      "reposition_minutes": 209965.19931578636,
+      "moved": 21271.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 1000,
       "seed": 2,
@@ -342,6 +411,19 @@
       "empty_minutes": 507405.8798327446,
       "reposition_minutes": 205382.80176997185,
       "moved": 20975.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 1000,
+      "seed": 2,
+      "theta": 0.1,
+      "unmet_rate": 0.5745681504630343,
+      "mean_wait_served": 1.5920924002434145,
+      "mean_wait_penalized": 9.295849071414818,
+      "empty_minutes": 513822.1340916157,
+      "reposition_minutes": 206487.80133342743,
+      "moved": 21023.0,
       "demand": 453746
     },
     {
@@ -436,6 +518,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 1000,
+      "seed": 3,
+      "theta": 0.1,
+      "unmet_rate": 0.563595050975656,
+      "mean_wait_served": 1.5775859145582323,
+      "mean_wait_penalized": 9.142392065259148,
+      "empty_minutes": 526129.7889258862,
+      "reposition_minutes": 213740.95888280869,
+      "moved": 21629.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 1000,
       "seed": 3,
@@ -446,6 +541,19 @@
       "empty_minutes": 516368.4530496597,
       "reposition_minutes": 207462.58843040466,
       "moved": 21190.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 1000,
+      "seed": 3,
+      "theta": 0.1,
+      "unmet_rate": 0.5747576838142926,
+      "mean_wait_served": 1.5944429953461376,
+      "mean_wait_penalized": 9.299389889581457,
+      "empty_minutes": 514377.6958312988,
+      "reposition_minutes": 206726.73099327087,
+      "moved": 20996.0,
       "demand": 453746
     },
     {
@@ -540,6 +648,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 1000,
+      "seed": 4,
+      "theta": 0.1,
+      "unmet_rate": 0.5760667862636806,
+      "mean_wait_served": 1.590434586688591,
+      "mean_wait_penalized": 9.315239839527498,
+      "empty_minutes": 512938.8130943775,
+      "reposition_minutes": 207005.99686813354,
+      "moved": 21043.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 1000,
       "seed": 4,
@@ -550,6 +671,19 @@
       "empty_minutes": 504852.87696766853,
       "reposition_minutes": 203183.07588791847,
       "moved": 20748.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 1000,
+      "seed": 4,
+      "theta": 0.1,
+      "unmet_rate": 0.5783367787264241,
+      "mean_wait_served": 1.5764928183007907,
+      "mean_wait_penalized": 9.339800720975731,
+      "empty_minutes": 507808.5341553688,
+      "reposition_minutes": 206181.31621551514,
+      "moved": 20901.0,
       "demand": 453746
     },
     {
@@ -644,6 +778,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 1500,
+      "seed": 0,
+      "theta": 0.1,
+      "unmet_rate": 0.40283330321369226,
+      "mean_wait_served": 1.692350464014271,
+      "mean_wait_penalized": 7.053114884605561,
+      "empty_minutes": 814538.831921339,
+      "reposition_minutes": 355976.1654911041,
+      "moved": 36048.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 1500,
       "seed": 0,
@@ -654,6 +801,19 @@
       "empty_minutes": 810778.3151288033,
       "reposition_minutes": 355585.3445081711,
       "moved": 36201.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 1500,
+      "seed": 0,
+      "theta": 0.1,
+      "unmet_rate": 0.3971539143044787,
+      "mean_wait_served": 1.6893544633783906,
+      "mean_wait_penalized": 6.975729440167101,
+      "empty_minutes": 814713.7123270035,
+      "reposition_minutes": 352609.3817689419,
+      "moved": 35736.0,
       "demand": 453746
     },
     {
@@ -748,6 +908,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 1500,
+      "seed": 1,
+      "theta": 0.1,
+      "unmet_rate": 0.4001996711816743,
+      "mean_wait_served": 1.6728133245180024,
+      "mean_wait_penalized": 7.006349049822689,
+      "empty_minutes": 815049.3035907745,
+      "reposition_minutes": 359781.4476299286,
+      "moved": 36532.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 1500,
       "seed": 1,
@@ -758,6 +931,19 @@
       "empty_minutes": 803129.2766041756,
       "reposition_minutes": 351046.98901724815,
       "moved": 35707.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 1500,
+      "seed": 1,
+      "theta": 0.1,
+      "unmet_rate": 0.4019186946000626,
+      "mean_wait_served": 1.6970670960173586,
+      "mean_wait_penalized": 7.0437645231382815,
+      "empty_minutes": 813632.212199688,
+      "reposition_minutes": 353087.23488378525,
+      "moved": 35753.0,
       "demand": 453746
     },
     {
@@ -852,6 +1038,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 1500,
+      "seed": 2,
+      "theta": 0.1,
+      "unmet_rate": 0.4037413001987896,
+      "mean_wait_served": 1.677842214349413,
+      "mean_wait_penalized": 7.056547520181409,
+      "empty_minutes": 811262.6323695183,
+      "reposition_minutes": 357322.4212772846,
+      "moved": 36005.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 1500,
       "seed": 2,
@@ -862,6 +1061,19 @@
       "empty_minutes": 792637.5937447548,
       "reposition_minutes": 346187.463521719,
       "moved": 35346.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 1500,
+      "seed": 2,
+      "theta": 0.1,
+      "unmet_rate": 0.4023793047211435,
+      "mean_wait_served": 1.6826921929802032,
+      "mean_wait_penalized": 7.041301249126286,
+      "empty_minutes": 811114.7404267788,
+      "reposition_minutes": 354822.46384072304,
+      "moved": 35916.0,
       "demand": 453746
     },
     {
@@ -956,6 +1168,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 1500,
+      "seed": 3,
+      "theta": 0.1,
+      "unmet_rate": 0.41628135564831426,
+      "mean_wait_served": 1.6750897907026132,
+      "mean_wait_penalized": 7.222001476520992,
+      "empty_minutes": 791619.7936308384,
+      "reposition_minutes": 347955.51166534424,
+      "moved": 35078.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 1500,
       "seed": 3,
@@ -966,6 +1191,19 @@
       "empty_minutes": 801541.0853497982,
       "reposition_minutes": 350889.9911735058,
       "moved": 35764.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 1500,
+      "seed": 3,
+      "theta": 0.1,
+      "unmet_rate": 0.40239913960674034,
+      "mean_wait_served": 1.6902891323104203,
+      "mean_wait_penalized": 7.0461053338831885,
+      "empty_minutes": 813647.4070076942,
+      "reposition_minutes": 355310.296179533,
+      "moved": 36035.0,
       "demand": 453746
     },
     {
@@ -1060,6 +1298,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 1500,
+      "seed": 4,
+      "theta": 0.1,
+      "unmet_rate": 0.40322779704945055,
+      "mean_wait_served": 1.6749759122952668,
+      "mean_wait_penalized": 7.047996020811311,
+      "empty_minutes": 812567.0537149906,
+      "reposition_minutes": 359012.0512559414,
+      "moved": 36223.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 1500,
       "seed": 4,
@@ -1070,6 +1321,19 @@
       "empty_minutes": 792718.1001520157,
       "reposition_minutes": 349066.5547297001,
       "moved": 35443.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 1500,
+      "seed": 4,
+      "theta": 0.1,
+      "unmet_rate": 0.3950359892979773,
+      "mean_wait_served": 1.6897475801052726,
+      "mean_wait_penalized": 6.947776312604183,
+      "empty_minutes": 824289.4934632778,
+      "reposition_minutes": 360453.7827243805,
+      "moved": 36456.0,
       "demand": 453746
     },
     {
@@ -1164,6 +1428,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 0,
+      "theta": 0.1,
+      "unmet_rate": 0.25759565924548095,
+      "mean_wait_served": 1.7414276344806878,
+      "mean_wait_penalized": 5.156778323630551,
+      "empty_minutes": 1150426.0553050041,
+      "reposition_minutes": 563803.5180709362,
+      "moved": 56376.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 2000,
       "seed": 0,
@@ -1174,6 +1451,19 @@
       "empty_minutes": 1129950.1065485477,
       "reposition_minutes": 552525.0778000355,
       "moved": 54918.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 0,
+      "theta": 0.1,
+      "unmet_rate": 0.2653841576564862,
+      "mean_wait_served": 1.7391199872469776,
+      "mean_wait_penalized": 5.258347459215173,
+      "empty_minutes": 1125862.2382702827,
+      "reposition_minutes": 546163.112041235,
+      "moved": 54577.0,
       "demand": 453746
     },
     {
@@ -1268,6 +1558,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 1,
+      "theta": 0.1,
+      "unmet_rate": 0.2738051685304113,
+      "mean_wait_served": 1.731983317059387,
+      "mean_wait_penalized": 5.36483486099625,
+      "empty_minutes": 1119306.822004795,
+      "reposition_minutes": 548604.4631671906,
+      "moved": 54897.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 2000,
       "seed": 1,
@@ -1278,6 +1581,19 @@
       "empty_minutes": 1122503.0514798164,
       "reposition_minutes": 550984.2174742222,
       "moved": 54938.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 1,
+      "theta": 0.1,
+      "unmet_rate": 0.2708563822050222,
+      "mean_wait_served": 1.739323339548295,
+      "mean_wait_penalized": 5.33106224538882,
+      "empty_minutes": 1118408.1505067348,
+      "reposition_minutes": 542959.9809105396,
+      "moved": 54174.0,
       "demand": 453746
     },
     {
@@ -1372,6 +1688,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 2,
+      "theta": 0.1,
+      "unmet_rate": 0.26806407108823,
+      "mean_wait_served": 1.7342171979010157,
+      "mean_wait_penalized": 5.290296942003897,
+      "empty_minutes": 1119381.7923660278,
+      "reposition_minutes": 543425.7161195278,
+      "moved": 54484.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 2000,
       "seed": 2,
@@ -1382,6 +1711,19 @@
       "empty_minutes": 1094895.4109771252,
       "reposition_minutes": 530043.4554729462,
       "moved": 52932.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 2,
+      "theta": 0.1,
+      "unmet_rate": 0.26558691426480896,
+      "mean_wait_served": 1.7448329539867045,
+      "mean_wait_penalized": 5.265231867801958,
+      "empty_minutes": 1129373.243549347,
+      "reposition_minutes": 547930.3444616795,
+      "moved": 54703.0,
       "demand": 453746
     },
     {
@@ -1476,6 +1818,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 3,
+      "theta": 0.1,
+      "unmet_rate": 0.273882304196621,
+      "mean_wait_served": 1.7188354424772108,
+      "mean_wait_penalized": 5.356311393906049,
+      "empty_minutes": 1113764.2613589764,
+      "reposition_minutes": 547454.3916196823,
+      "moved": 54850.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 2000,
       "seed": 3,
@@ -1486,6 +1841,19 @@
       "empty_minutes": 1095208.940713644,
       "reposition_minutes": 532577.8655669689,
       "moved": 53259.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 3,
+      "theta": 0.1,
+      "unmet_rate": 0.2622546534845486,
+      "mean_wait_served": 1.7435347325320758,
+      "mean_wait_penalized": 5.22010443768183,
+      "empty_minutes": 1143633.8420858383,
+      "reposition_minutes": 559987.3339054585,
+      "moved": 55977.0,
       "demand": 453746
     },
     {
@@ -1580,6 +1948,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 4,
+      "theta": 0.1,
+      "unmet_rate": 0.2621532751803873,
+      "mean_wait_served": 1.7329454499626693,
+      "mean_wait_penalized": 5.210947252251815,
+      "empty_minutes": 1144456.077857256,
+      "reposition_minutes": 564274.6059370041,
+      "moved": 56266.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 2000,
       "seed": 4,
@@ -1590,6 +1971,19 @@
       "empty_minutes": 1091050.6635956764,
       "reposition_minutes": 527153.9105284214,
       "moved": 52750.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 4,
+      "theta": 0.1,
+      "unmet_rate": 0.2707307612629092,
+      "mean_wait_served": 1.733750750407439,
+      "mean_wait_penalized": 5.325332508853131,
+      "empty_minutes": 1115300.0935473442,
+      "reposition_minutes": 541596.7689852715,
+      "moved": 54099.0,
       "demand": 453746
     },
     {
@@ -1684,6 +2078,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 3000,
+      "seed": 0,
+      "theta": 0.1,
+      "unmet_rate": 0.13254552106244463,
+      "mean_wait_served": 1.6652235021676085,
+      "mean_wait_penalized": 3.4326884013240435,
+      "empty_minutes": 1475934.4065332413,
+      "reposition_minutes": 820495.7751860619,
+      "moved": 81443.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 3000,
       "seed": 0,
@@ -1694,6 +2101,19 @@
       "empty_minutes": 1438466.5678429604,
       "reposition_minutes": 756046.2980713844,
       "moved": 75411.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 3000,
+      "seed": 0,
+      "theta": 0.1,
+      "unmet_rate": 0.12899507654061965,
+      "mean_wait_served": 1.6486928679698372,
+      "mean_wait_penalized": 3.370945753383389,
+      "empty_minutes": 1479806.9730813503,
+      "reposition_minutes": 828218.8212666512,
+      "moved": 82102.0,
       "demand": 453746
     },
     {
@@ -1788,6 +2208,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 3000,
+      "seed": 1,
+      "theta": 0.1,
+      "unmet_rate": 0.12471514900406835,
+      "mean_wait_served": 1.6744317392957773,
+      "mean_wait_penalized": 3.3363319704933883,
+      "empty_minutes": 1512066.6037156582,
+      "reposition_minutes": 847054.3174321651,
+      "moved": 83906.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 3000,
       "seed": 1,
@@ -1798,6 +2231,19 @@
       "empty_minutes": 1442823.4655590057,
       "reposition_minutes": 763885.8061084747,
       "moved": 76154.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 3000,
+      "seed": 1,
+      "theta": 0.1,
+      "unmet_rate": 0.1250501381830363,
+      "mean_wait_served": 1.649687467632293,
+      "mean_wait_penalized": 3.319145894591596,
+      "empty_minutes": 1484930.4266889095,
+      "reposition_minutes": 829996.253601551,
+      "moved": 82502.0,
       "demand": 453746
     },
     {
@@ -1892,6 +2338,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 3000,
+      "seed": 2,
+      "theta": 0.1,
+      "unmet_rate": 0.13040114954181414,
+      "mean_wait_served": 1.6507634561698974,
+      "mean_wait_penalized": 3.3915192469909368,
+      "empty_minutes": 1478704.0875804424,
+      "reposition_minutes": 827350.7953352928,
+      "moved": 82651.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 3000,
       "seed": 2,
@@ -1902,6 +2361,19 @@
       "empty_minutes": 1440240.693217039,
       "reposition_minutes": 756291.7062368393,
       "moved": 75532.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 3000,
+      "seed": 2,
+      "theta": 0.1,
+      "unmet_rate": 0.1308397209011209,
+      "mean_wait_served": 1.6567550714409556,
+      "mean_wait_penalized": 3.4025815138089177,
+      "empty_minutes": 1475708.393910408,
+      "reposition_minutes": 822320.6423456669,
+      "moved": 82058.0,
       "demand": 453746
     },
     {
@@ -1996,6 +2468,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 3000,
+      "seed": 3,
+      "theta": 0.1,
+      "unmet_rate": 0.13057084800747554,
+      "mean_wait_served": 1.6673960500585414,
+      "mean_wait_penalized": 3.4082454539502156,
+      "empty_minutes": 1490505.0137405396,
+      "reposition_minutes": 832717.271992445,
+      "moved": 82871.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 3000,
       "seed": 3,
@@ -2006,6 +2491,19 @@
       "empty_minutes": 1442069.6770780087,
       "reposition_minutes": 758456.7374796867,
       "moved": 75798.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 3000,
+      "seed": 3,
+      "theta": 0.1,
+      "unmet_rate": 0.12673389958258585,
+      "mean_wait_served": 1.6425539797831326,
+      "mean_wait_penalized": 3.3353952023891082,
+      "empty_minutes": 1473685.9459648132,
+      "reposition_minutes": 822838.714461565,
+      "moved": 81866.0,
       "demand": 453746
     },
     {
@@ -2100,6 +2598,19 @@
       "demand": 453746
     },
     {
+      "policy": "gbm_cal",
+      "fleet": 3000,
+      "seed": 4,
+      "theta": 0.1,
+      "unmet_rate": 0.1281972733643933,
+      "mean_wait_served": 1.6618676648128272,
+      "mean_wait_penalized": 3.371779861957271,
+      "empty_minutes": 1497524.7063672543,
+      "reposition_minutes": 840128.0811235905,
+      "moved": 83545.0,
+      "demand": 453746
+    },
+    {
       "policy": "stgnn",
       "fleet": 3000,
       "seed": 4,
@@ -2110,6 +2621,19 @@
       "empty_minutes": 1436933.9360716343,
       "reposition_minutes": 761145.6708171368,
       "moved": 76064.0,
+      "demand": 453746
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 3000,
+      "seed": 4,
+      "theta": 0.1,
+      "unmet_rate": 0.12884741683673245,
+      "mean_wait_served": 1.6567606651598603,
+      "mean_wait_penalized": 3.3760025856882923,
+      "empty_minutes": 1492262.0135326385,
+      "reposition_minutes": 837374.3442869186,
+      "moved": 82791.0,
       "demand": 453746
     },
     {
@@ -2152,6 +2676,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 0,
+      "theta": 0.02,
+      "unmet_rate": 0.2600838354497891,
+      "mean_wait_served": 1.732792912477466,
+      "mean_wait_penalized": 5.183379017506953,
+      "empty_minutes": 1158621.121261835,
+      "reposition_minutes": 576863.6255841255,
+      "moved": 57204.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 0,
@@ -2162,6 +2699,19 @@
       "empty_minutes": 1171370.1687176228,
       "reposition_minutes": 590832.0938322544,
       "moved": 58524.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 0,
+      "theta": 0.02,
+      "unmet_rate": 0.2632904752879364,
+      "mean_wait_served": 1.721778709954739,
+      "mean_wait_penalized": 5.217807904389152,
+      "empty_minutes": 1160957.5520875454,
+      "reposition_minutes": 585403.0867025852,
+      "moved": 58036.0,
       "demand": 453746
     },
     {
@@ -2204,6 +2754,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 1,
+      "theta": 0.02,
+      "unmet_rate": 0.25308212083412307,
+      "mean_wait_served": 1.7493360809053378,
+      "mean_wait_penalized": 5.102842208010007,
+      "empty_minutes": 1179417.5331084728,
+      "reposition_minutes": 586548.2925927639,
+      "moved": 58214.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 1,
@@ -2214,6 +2777,19 @@
       "empty_minutes": 1162052.8184344769,
       "reposition_minutes": 587042.8498797417,
       "moved": 58084.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 1,
+      "theta": 0.02,
+      "unmet_rate": 0.2526457533509937,
+      "mean_wait_served": 1.7277959372225316,
+      "mean_wait_penalized": 5.080961931291065,
+      "empty_minutes": 1178712.4778060913,
+      "reposition_minutes": 592801.3253304958,
+      "moved": 58678.0,
       "demand": 453746
     },
     {
@@ -2256,6 +2832,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 2,
+      "theta": 0.02,
+      "unmet_rate": 0.25312399448149403,
+      "mean_wait_served": 1.7453148486477097,
+      "mean_wait_penalized": 5.100393699752548,
+      "empty_minutes": 1185015.6514334679,
+      "reposition_minutes": 593542.4117455482,
+      "moved": 58751.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 2,
@@ -2266,6 +2855,19 @@
       "empty_minutes": 1155584.0933320522,
       "reposition_minutes": 574919.9758458138,
       "moved": 56797.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 2,
+      "theta": 0.02,
+      "unmet_rate": 0.2606149696085475,
+      "mean_wait_served": 1.7299883481801293,
+      "mean_wait_penalized": 5.188352031524237,
+      "empty_minutes": 1161660.5506370068,
+      "reposition_minutes": 581261.5697410107,
+      "moved": 57797.0,
       "demand": 453746
     },
     {
@@ -2308,6 +2910,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 3,
+      "theta": 0.02,
+      "unmet_rate": 0.264277811815421,
+      "mean_wait_served": 1.7399965409149747,
+      "mean_wait_penalized": 5.244321239746878,
+      "empty_minutes": 1152183.3145370483,
+      "reposition_minutes": 571318.5292868614,
+      "moved": 56576.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 3,
@@ -2318,6 +2933,19 @@
       "empty_minutes": 1179109.9909791946,
       "reposition_minutes": 592429.3076524734,
       "moved": 58689.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 3,
+      "theta": 0.02,
+      "unmet_rate": 0.26186677127732255,
+      "mean_wait_served": 1.7335917316643776,
+      "mean_wait_penalized": 5.207623231340203,
+      "empty_minutes": 1165090.7951898575,
+      "reposition_minutes": 584467.5844621658,
+      "moved": 57891.0,
       "demand": 453746
     },
     {
@@ -2360,6 +2988,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 4,
+      "theta": 0.02,
+      "unmet_rate": 0.26498525606837303,
+      "mean_wait_served": 1.7358574906159283,
+      "mean_wait_penalized": 5.2506596899924585,
+      "empty_minutes": 1150733.3435926437,
+      "reposition_minutes": 571807.5118973255,
+      "moved": 56845.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 4,
@@ -2370,6 +3011,19 @@
       "empty_minutes": 1169404.825216055,
       "reposition_minutes": 585743.035220623,
       "moved": 57822.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 4,
+      "theta": 0.02,
+      "unmet_rate": 0.2521278424492998,
+      "mean_wait_served": 1.7520462648903634,
+      "mean_wait_penalized": 5.092224256991699,
+      "empty_minutes": 1191971.7994339466,
+      "reposition_minutes": 597425.4117209911,
+      "moved": 59221.0,
       "demand": 453746
     },
     {
@@ -2412,6 +3066,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 0,
+      "theta": 0.05,
+      "unmet_rate": 0.27057869380666716,
+      "mean_wait_served": 1.738697400116764,
+      "mean_wait_penalized": 5.32692333576813,
+      "empty_minutes": 1131674.9799790382,
+      "reposition_minutes": 556214.8240675926,
+      "moved": 55117.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 0,
@@ -2422,6 +3089,19 @@
       "empty_minutes": 1146412.168342352,
       "reposition_minutes": 566939.5826554298,
       "moved": 56660.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 0,
+      "theta": 0.05,
+      "unmet_rate": 0.26490150877363106,
+      "mean_wait_served": 1.727826800853679,
+      "mean_wait_penalized": 5.24364550601249,
+      "empty_minutes": 1148210.122130394,
+      "reposition_minutes": 571896.948359251,
+      "moved": 56785.0,
       "demand": 453746
     },
     {
@@ -2464,6 +3144,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 1,
+      "theta": 0.05,
+      "unmet_rate": 0.261979168962371,
+      "mean_wait_served": 1.745277424357787,
+      "mean_wait_penalized": 5.217738629551312,
+      "empty_minutes": 1157359.4733612537,
+      "reposition_minutes": 572911.4411568642,
+      "moved": 56658.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 1,
@@ -2474,6 +3167,19 @@
       "empty_minutes": 1145693.6574528217,
       "reposition_minutes": 570143.4852895737,
       "moved": 56670.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 1,
+      "theta": 0.05,
+      "unmet_rate": 0.26922330995755334,
+      "mean_wait_served": 1.7261747495965158,
+      "mean_wait_penalized": 5.299797919308292,
+      "empty_minutes": 1138735.4304542542,
+      "reposition_minutes": 566358.3237597942,
+      "moved": 56453.0,
       "demand": 453746
     },
     {
@@ -2516,6 +3222,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 2,
+      "theta": 0.05,
+      "unmet_rate": 0.26708995781781,
+      "mean_wait_served": 1.7332800273354985,
+      "mean_wait_penalized": 5.276687705215157,
+      "empty_minutes": 1136285.7582960129,
+      "reposition_minutes": 559874.8188054562,
+      "moved": 55831.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 2,
@@ -2526,6 +3245,19 @@
       "empty_minutes": 1133835.4714250565,
       "reposition_minutes": 557502.346739769,
       "moved": 55320.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 2,
+      "theta": 0.05,
+      "unmet_rate": 0.2513520780348477,
+      "mean_wait_served": 1.7250930585865867,
+      "mean_wait_penalized": 5.061768504030073,
+      "empty_minutes": 1179709.3965146542,
+      "reposition_minutes": 593702.184885025,
+      "moved": 59084.0,
       "demand": 453746
     },
     {
@@ -2568,6 +3300,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 3,
+      "theta": 0.05,
+      "unmet_rate": 0.26492134365922787,
+      "mean_wait_served": 1.745875379211095,
+      "mean_wait_penalized": 5.257175882777346,
+      "empty_minutes": 1145007.6233913898,
+      "reposition_minutes": 562690.0952847004,
+      "moved": 55985.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 3,
@@ -2578,6 +3323,19 @@
       "empty_minutes": 1147811.175891161,
       "reposition_minutes": 569531.1798653603,
       "moved": 56443.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 3,
+      "theta": 0.05,
+      "unmet_rate": 0.2551515605647212,
+      "mean_wait_served": 1.7305654341163241,
+      "mean_wait_penalized": 5.116282371412998,
+      "empty_minutes": 1181987.0245351791,
+      "reposition_minutes": 597104.3636360168,
+      "moved": 59122.0,
       "demand": 453746
     },
     {
@@ -2620,6 +3378,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 4,
+      "theta": 0.05,
+      "unmet_rate": 0.2682602160680204,
+      "mean_wait_served": 1.736746776855943,
+      "mean_wait_penalized": 5.294749952261436,
+      "empty_minutes": 1127579.8506622314,
+      "reposition_minutes": 550938.2388234138,
+      "moved": 54776.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 4,
@@ -2630,6 +3401,19 @@
       "empty_minutes": 1137702.0278067589,
       "reposition_minutes": 564057.4776160717,
       "moved": 56108.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 4,
+      "theta": 0.05,
+      "unmet_rate": 0.2599405834982567,
+      "mean_wait_served": 1.7174298110185215,
+      "mean_wait_penalized": 5.170108856298917,
+      "empty_minutes": 1154510.1683254242,
+      "reposition_minutes": 577798.9552152157,
+      "moved": 57603.0,
       "demand": 453746
     },
     {
@@ -2672,6 +3456,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 0,
+      "theta": 0.2,
+      "unmet_rate": 0.28286530349578837,
+      "mean_wait_served": 1.733316398458028,
+      "mean_wait_penalized": 5.486000881790797,
+      "empty_minutes": 1060708.4027109146,
+      "reposition_minutes": 496692.4466018677,
+      "moved": 49939.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 0,
@@ -2682,6 +3479,19 @@
       "empty_minutes": 1098653.520050764,
       "reposition_minutes": 530853.2774534225,
       "moved": 53260.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 0,
+      "theta": 0.2,
+      "unmet_rate": 0.2838041547473697,
+      "mean_wait_served": 1.7257418024632425,
+      "mean_wait_penalized": 5.493031430113505,
+      "empty_minutes": 1074251.4565765858,
+      "reposition_minutes": 513435.4172883034,
+      "moved": 51507.0,
       "demand": 453746
     },
     {
@@ -2724,6 +3534,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 1,
+      "theta": 0.2,
+      "unmet_rate": 0.27409828406200826,
+      "mean_wait_served": 1.7370542395655073,
+      "mean_wait_penalized": 5.372404914108089,
+      "empty_minutes": 1085274.312472105,
+      "reposition_minutes": 513132.07231521606,
+      "moved": 51505.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 1,
@@ -2734,6 +3557,19 @@
       "empty_minutes": 1101661.1668784618,
       "reposition_minutes": 525904.8282208443,
       "moved": 52922.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 1,
+      "theta": 0.2,
+      "unmet_rate": 0.2846967245992251,
+      "mean_wait_served": 1.7137591472437221,
+      "mean_wait_penalized": 5.49630840025985,
+      "empty_minutes": 1069249.0049915314,
+      "reposition_minutes": 513021.0536072254,
+      "moved": 51639.0,
       "demand": 453746
     },
     {
@@ -2776,6 +3612,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 2,
+      "theta": 0.2,
+      "unmet_rate": 0.27654017886659055,
+      "mean_wait_served": 1.7562845493686503,
+      "mean_wait_penalized": 5.418703988944473,
+      "empty_minutes": 1092146.4518797398,
+      "reposition_minutes": 515616.19171214104,
+      "moved": 51524.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 2,
@@ -2786,6 +3635,19 @@
       "empty_minutes": 1071118.9583854675,
       "reposition_minutes": 508471.8199839592,
       "moved": 51076.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 2,
+      "theta": 0.2,
+      "unmet_rate": 0.2791627915177214,
+      "mean_wait_served": 1.7307655157664574,
+      "mean_wait_penalized": 5.435042055688305,
+      "empty_minutes": 1082781.3737461567,
+      "reposition_minutes": 516687.7811458111,
+      "moved": 52048.0,
       "demand": 453746
     },
     {
@@ -2828,6 +3690,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 3,
+      "theta": 0.2,
+      "unmet_rate": 0.2741247305761373,
+      "mean_wait_served": 1.7351042016211546,
+      "mean_wait_penalized": 5.371340188472291,
+      "empty_minutes": 1088013.5654461384,
+      "reposition_minutes": 516534.44028759,
+      "moved": 51760.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 3,
@@ -2838,6 +3713,19 @@
       "empty_minutes": 1114912.8251314163,
       "reposition_minutes": 536605.5659925938,
       "moved": 53808.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 3,
+      "theta": 0.2,
+      "unmet_rate": 0.2757952687186223,
+      "mean_wait_served": 1.7274499513240948,
+      "mean_wait_penalized": 5.38795645858003,
+      "empty_minutes": 1082121.2340078354,
+      "reposition_minutes": 514472.5427529812,
+      "moved": 51633.0,
       "demand": 453746
     },
     {
@@ -2880,6 +3768,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 4,
+      "theta": 0.2,
+      "unmet_rate": 0.2936709083936828,
+      "mean_wait_served": 1.7339257913307493,
+      "mean_wait_penalized": 5.629785855008655,
+      "empty_minutes": 1045039.3049473763,
+      "reposition_minutes": 489326.49238061905,
+      "moved": 49197.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 4,
@@ -2890,6 +3791,19 @@
       "empty_minutes": 1062975.4127118587,
       "reposition_minutes": 504596.39724230766,
       "moved": 50676.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 4,
+      "theta": 0.2,
+      "unmet_rate": 0.28844992572937284,
+      "mean_wait_served": 1.7275983064032272,
+      "mean_wait_penalized": 5.5560215891716185,
+      "empty_minutes": 1065166.4410922527,
+      "reposition_minutes": 507388.8690919876,
+      "moved": 50944.0,
       "demand": 453746
     },
     {
@@ -2932,6 +3846,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 0,
+      "theta": 0.5,
+      "unmet_rate": 0.33028169945299796,
+      "mean_wait_served": 1.7524205788396958,
+      "mean_wait_penalized": 6.1278536236990835,
+      "empty_minutes": 874226.3156216145,
+      "reposition_minutes": 341697.24528265,
+      "moved": 35770.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 0,
@@ -2942,6 +3869,19 @@
       "empty_minutes": 877228.8697304726,
       "reposition_minutes": 341665.65653705597,
       "moved": 35918.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 0,
+      "theta": 0.5,
+      "unmet_rate": 0.3221934738818634,
+      "mean_wait_served": 1.7532655905182943,
+      "mean_wait_penalized": 6.021276967499619,
+      "empty_minutes": 895091.7330055237,
+      "reposition_minutes": 355871.3941104412,
+      "moved": 37296.0,
       "demand": 453746
     },
     {
@@ -2984,6 +3924,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 1,
+      "theta": 0.5,
+      "unmet_rate": 0.30920382769214494,
+      "mean_wait_served": 1.7640823893899902,
+      "mean_wait_penalized": 5.856678777608474,
+      "empty_minutes": 921463.8970184326,
+      "reposition_minutes": 368519.32839369774,
+      "moved": 38442.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 1,
@@ -2994,6 +3947,19 @@
       "empty_minutes": 895394.2406971455,
       "reposition_minutes": 355985.9507830143,
       "moved": 37301.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 1,
+      "theta": 0.5,
+      "unmet_rate": 0.319531191459539,
+      "mean_wait_served": 1.7536513233450444,
+      "mean_wait_penalized": 5.98627289848509,
+      "empty_minutes": 900364.2830650806,
+      "reposition_minutes": 358906.9004690647,
+      "moved": 37519.0,
       "demand": 453746
     },
     {
@@ -3036,6 +4002,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 2,
+      "theta": 0.5,
+      "unmet_rate": 0.331240385590176,
+      "mean_wait_served": 1.7485301744993407,
+      "mean_wait_penalized": 6.137952149134762,
+      "empty_minutes": 876820.4379961491,
+      "reposition_minutes": 346234.20213484764,
+      "moved": 36229.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 2,
@@ -3046,6 +4025,19 @@
       "empty_minutes": 886582.6791746616,
       "reposition_minutes": 348345.6791808605,
       "moved": 36489.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 2,
+      "theta": 0.5,
+      "unmet_rate": 0.33738258849664793,
+      "mean_wait_served": 1.7310736684672952,
+      "mean_wait_penalized": 6.2077783807711295,
+      "empty_minutes": 865299.9421205521,
+      "reposition_minutes": 344835.3329591751,
+      "moved": 36135.0,
       "demand": 453746
     },
     {
@@ -3088,6 +4080,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 3,
+      "theta": 0.5,
+      "unmet_rate": 0.33585750618187266,
+      "mean_wait_served": 1.747376864087753,
+      "mean_wait_penalized": 6.198369820883429,
+      "empty_minutes": 863804.6797089577,
+      "reposition_minutes": 337229.1669623852,
+      "moved": 35440.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 3,
@@ -3098,6 +4103,19 @@
       "empty_minutes": 883439.1422786713,
       "reposition_minutes": 348475.5426607132,
       "moved": 36713.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 3,
+      "theta": 0.5,
+      "unmet_rate": 0.3275290581073993,
+      "mean_wait_served": 1.7521275179035565,
+      "mean_wait_penalized": 6.091190713891539,
+      "empty_minutes": 884902.8608820438,
+      "reposition_minutes": 350274.43921661377,
+      "moved": 36667.0,
       "demand": 453746
     },
     {
@@ -3140,6 +4158,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 4,
+      "theta": 0.5,
+      "unmet_rate": 0.32644695490428566,
+      "mean_wait_served": 1.7584611839031792,
+      "mean_wait_penalized": 6.081121208664886,
+      "empty_minutes": 881586.7514042854,
+      "reposition_minutes": 344162.327457428,
+      "moved": 36064.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 4,
@@ -3150,6 +4181,19 @@
       "empty_minutes": 874474.5070304871,
       "reposition_minutes": 345378.42919683456,
       "moved": 36170.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 4,
+      "theta": 0.5,
+      "unmet_rate": 0.32891088847064215,
+      "mean_wait_served": 1.7467463789195292,
+      "mean_wait_penalized": 6.105885802555862,
+      "empty_minutes": 878393.4311451912,
+      "reposition_minutes": 346502.1717786789,
+      "moved": 36311.0,
       "demand": 453746
     },
     {
@@ -3192,6 +4236,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 0,
+      "theta": 1.0,
+      "unmet_rate": 0.4044487444517417,
+      "mean_wait_served": 2.0133346805411794,
+      "mean_wait_penalized": 7.265775163611277,
+      "empty_minutes": 605528.3046760559,
+      "reposition_minutes": 61466.88728809357,
+      "moved": 6783.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 0,
@@ -3202,6 +4259,19 @@
       "empty_minutes": 598790.2802770138,
       "reposition_minutes": 59142.51101279259,
       "moved": 6558.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 0,
+      "theta": 1.0,
+      "unmet_rate": 0.41243999947106974,
+      "mean_wait_served": 2.0130733361474586,
+      "mean_wait_penalized": 7.369401362517622,
+      "empty_minutes": 597955.5128877163,
+      "reposition_minutes": 61264.122250795364,
+      "moved": 6774.0,
       "demand": 453746
     },
     {
@@ -3244,6 +4314,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 1,
+      "theta": 1.0,
+      "unmet_rate": 0.41017000700832623,
+      "mean_wait_served": 2.0340515207717034,
+      "mean_wait_penalized": 7.352294699366371,
+      "empty_minutes": 603594.4488136768,
+      "reposition_minutes": 59215.13815498352,
+      "moved": 6557.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 1,
@@ -3254,6 +4337,19 @@
       "empty_minutes": 589330.2847251892,
       "reposition_minutes": 58268.437428474426,
       "moved": 6487.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 1,
+      "theta": 1.0,
+      "unmet_rate": 0.39947900367165773,
+      "mean_wait_served": 1.9949325006527643,
+      "mean_wait_penalized": 7.190183907974655,
+      "empty_minutes": 607727.1169221401,
+      "reposition_minutes": 64139.92941427231,
+      "moved": 7166.0,
       "demand": 453746
     },
     {
@@ -3296,6 +4392,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 2,
+      "theta": 1.0,
+      "unmet_rate": 0.41051160781582646,
+      "mean_wait_served": 2.0088583516269156,
+      "mean_wait_penalized": 7.341872797063696,
+      "empty_minutes": 597767.46585536,
+      "reposition_minutes": 60442.05167889595,
+      "moved": 6622.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 2,
@@ -3306,6 +4415,19 @@
       "empty_minutes": 582209.2169258595,
       "reposition_minutes": 56507.67114877701,
       "moved": 6303.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 2,
+      "theta": 1.0,
+      "unmet_rate": 0.41736125497525045,
+      "mean_wait_served": 2.0238791123548308,
+      "mean_wait_penalized": 7.439609210732979,
+      "empty_minutes": 596736.0439403057,
+      "reposition_minutes": 61683.1230070591,
+      "moved": 6753.0,
       "demand": 453746
     },
     {
@@ -3348,6 +4470,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 3,
+      "theta": 1.0,
+      "unmet_rate": 0.4125127273849246,
+      "mean_wait_served": 2.0125775848544225,
+      "mean_wait_penalized": 7.370054627026229,
+      "empty_minutes": 596808.1929335594,
+      "reposition_minutes": 60315.386138916016,
+      "moved": 6607.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 3,
@@ -3358,6 +4493,19 @@
       "empty_minutes": 593166.5036878586,
       "reposition_minutes": 59752.539221048355,
       "moved": 6568.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 3,
+      "theta": 1.0,
+      "unmet_rate": 0.4120719521494404,
+      "mean_wait_served": 1.9980948542647712,
+      "mean_wait_penalized": 7.355815289329741,
+      "empty_minutes": 595542.5427556038,
+      "reposition_minutes": 62510.77848339081,
+      "moved": 6819.0,
       "demand": 453746
     },
     {
@@ -3400,6 +4548,19 @@
       "demand": 453746
     },
     {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "seed": 4,
+      "theta": 1.0,
+      "unmet_rate": 0.4216962794162373,
+      "mean_wait_served": 1.9985983550237587,
+      "mean_wait_penalized": 7.481241055906387,
+      "empty_minutes": 586064.1620769501,
+      "reposition_minutes": 61625.95792365074,
+      "moved": 6799.0,
+      "demand": 453746
+    },
+    {
       "policy": "gbm",
       "fleet": 2000,
       "seed": 4,
@@ -3410,6 +4571,19 @@
       "empty_minutes": 605515.8687345982,
       "reposition_minutes": 60842.70392680168,
       "moved": 6756.0,
+      "demand": 453746
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "seed": 4,
+      "theta": 1.0,
+      "unmet_rate": 0.41306149255310237,
+      "mean_wait_served": 2.0181884989325103,
+      "mean_wait_penalized": 7.380474933606478,
+      "empty_minutes": 597562.5884299278,
+      "reposition_minutes": 60076.60920572281,
+      "moved": 6637.0,
       "demand": 453746
     },
     {
@@ -3642,6 +4816,222 @@
       "unmet_rate_vs_persistence_std": 0.0027633296858633003,
       "empty_minutes_vs_persistence": -220202.2438378334,
       "empty_minutes_vs_persistence_std": 10146.76066071276
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 1000,
+      "theta": 0.1,
+      "n_seeds": 5,
+      "unmet_rate": 0.5728914414672526,
+      "unmet_rate_std": 0.00533917362496451,
+      "mean_wait_served": 1.5825678130176826,
+      "mean_wait_served_std": 0.005686003210518067,
+      "mean_wait_penalized": 9.269288709210715,
+      "mean_wait_penalized_std": 0.07280525204274585,
+      "empty_minutes": 515747.0443116665,
+      "empty_minutes_std": 6422.225179636721,
+      "reposition_minutes": 209052.3696621418,
+      "reposition_minutes_std": 3091.6003653795274,
+      "moved": 21187.8,
+      "moved_std": 278.74486542356254,
+      "mean_wait_penalized_vs_persistence": 0.016065017944249506,
+      "mean_wait_penalized_vs_persistence_std": 0.04155257307380232,
+      "unmet_rate_vs_persistence": 0.0025199120212630265,
+      "unmet_rate_vs_persistence_std": 0.003384557088015655,
+      "empty_minutes_vs_persistence": -67350.21400508881,
+      "empty_minutes_vs_persistence_std": 8308.627626550764
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 1500,
+      "theta": 0.1,
+      "n_seeds": 5,
+      "unmet_rate": 0.40525668545838417,
+      "unmet_rate_std": 0.006312731349352075,
+      "mean_wait_served": 1.6786143411759133,
+      "mean_wait_served_std": 0.00788336326529447,
+      "mean_wait_penalized": 7.0772017903883935,
+      "mean_wait_penalized_std": 0.08343682465544493,
+      "empty_minutes": 809007.5230454921,
+      "empty_minutes_std": 9838.539028801488,
+      "reposition_minutes": 356009.5194639206,
+      "reposition_minutes_std": 4739.053294967942,
+      "moved": 35977.2,
+      "moved_std": 543.7294363927706,
+      "mean_wait_penalized_vs_persistence": 0.007373172830583208,
+      "mean_wait_penalized_vs_persistence_std": 0.16009069669149636,
+      "unmet_rate_vs_persistence": 0.00337060822574744,
+      "unmet_rate_vs_persistence_std": 0.012240852819733701,
+      "empty_minutes_vs_persistence": -116251.13909873963,
+      "empty_minutes_vs_persistence_std": 23763.96063310052
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "theta": 0.02,
+      "n_seeds": 5,
+      "unmet_rate": 0.25810916239482007,
+      "unmet_rate_std": 0.005312008195434331,
+      "mean_wait_served": 1.7330401983824282,
+      "mean_wait_served_std": 0.011458315096935111,
+      "mean_wait_penalized": 5.1573938711072715,
+      "mean_wait_penalized_std": 0.06561282605412816,
+      "empty_minutes": 1171678.6350308894,
+      "empty_minutes_std": 13416.321532445774,
+      "reposition_minutes": 588271.7955914497,
+      "reposition_minutes_std": 6636.077670267382,
+      "moved": 58324.6,
+      "moved_std": 607.8826366988944,
+      "mean_wait_penalized_vs_persistence": -0.06292440351381608,
+      "mean_wait_penalized_vs_persistence_std": 0.08692608637957856,
+      "unmet_rate_vs_persistence": -0.0013915274184235326,
+      "unmet_rate_vs_persistence_std": 0.007044332204352832,
+      "empty_minutes_vs_persistence": -175719.09001851082,
+      "empty_minutes_vs_persistence_std": 22306.377432868176
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "theta": 0.05,
+      "n_seeds": 5,
+      "unmet_rate": 0.260113808165802,
+      "unmet_rate_std": 0.007199425722439219,
+      "mean_wait_served": 1.7254179708343251,
+      "mean_wait_served_std": 0.0049190400386691525,
+      "mean_wait_penalized": 5.178320631412554,
+      "mean_wait_penalized_std": 0.09555711390010796,
+      "empty_minutes": 1160630.4283919812,
+      "empty_minutes_std": 19308.18316839142,
+      "reposition_minutes": 581372.1551710606,
+      "reposition_minutes_std": 13486.052532422413,
+      "moved": 57809.4,
+      "moved_std": 1252.9306844354958,
+      "mean_wait_penalized_vs_persistence": -0.13840110173878434,
+      "mean_wait_penalized_vs_persistence_std": 0.17251397726995554,
+      "unmet_rate_vs_persistence": -0.006203470664204213,
+      "unmet_rate_vs_persistence_std": 0.013419097953734235,
+      "empty_minutes_vs_persistence": -167337.6241159439,
+      "empty_minutes_vs_persistence_std": 41451.73631150968
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "theta": 0.1,
+      "n_seeds": 5,
+      "unmet_rate": 0.26710009564822607,
+      "unmet_rate_std": 0.007188375127125803,
+      "mean_wait_served": 1.731881808376194,
+      "mean_wait_served_std": 0.008184224777846687,
+      "mean_wait_penalized": 5.275833754557712,
+      "mean_wait_penalized_std": 0.09081779146760523,
+      "empty_minutes": 1129467.001778412,
+      "empty_minutes_std": 16699.33445554013,
+      "reposition_minutes": 553512.5389828682,
+      "reposition_minutes_std": 9801.284212786593,
+      "moved": 55374.6,
+      "moved_std": 879.4701814160615,
+      "mean_wait_penalized_vs_persistence": -0.1217519752648446,
+      "mean_wait_penalized_vs_persistence_std": 0.10737691357804095,
+      "unmet_rate_vs_persistence": -0.005667928753090934,
+      "unmet_rate_vs_persistence_std": 0.008950782345357965,
+      "empty_minutes_vs_persistence": -164614.38035931587,
+      "empty_minutes_vs_persistence_std": 25421.09982534084
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "theta": 0.2,
+      "n_seeds": 5,
+      "unmet_rate": 0.2823817730624623,
+      "unmet_rate_std": 0.0049484474514957634,
+      "mean_wait_served": 1.7250629446401486,
+      "mean_wait_served_std": 0.006574227352946689,
+      "mean_wait_penalized": 5.473671986762661,
+      "mean_wait_penalized_std": 0.06424187813689092,
+      "empty_minutes": 1074713.9020828723,
+      "empty_minutes_std": 7765.076186315037,
+      "reposition_minutes": 513001.1327772617,
+      "reposition_minutes_std": 3443.9413126176414,
+      "moved": 51554.2,
+      "moved_std": 397.4326358013393,
+      "mean_wait_penalized_vs_persistence": 0.0678621366756877,
+      "mean_wait_penalized_vs_persistence_std": 0.08952731182324203,
+      "unmet_rate_vs_persistence": 0.009272147853645007,
+      "unmet_rate_vs_persistence_std": 0.006468477274936347,
+      "empty_minutes_vs_persistence": -187249.05144524574,
+      "empty_minutes_vs_persistence_std": 14648.055086419165
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "theta": 0.5,
+      "n_seeds": 5,
+      "unmet_rate": 0.32710944008321835,
+      "unmet_rate_std": 0.006902091164970979,
+      "mean_wait_served": 1.7473728958307437,
+      "mean_wait_served_std": 0.009523737053721625,
+      "mean_wait_penalized": 6.0824809526406485,
+      "mean_wait_penalized_std": 0.08562273342730946,
+      "empty_minutes": 884810.4500436783,
+      "empty_minutes_std": 13869.688999074184,
+      "reposition_minutes": 351278.04770679475,
+      "reposition_minutes_std": 6012.965571450607,
+      "moved": 36785.6,
+      "moved_std": 604.354035313739,
+      "mean_wait_penalized_vs_persistence": 0.20591453697554768,
+      "mean_wait_penalized_vs_persistence_std": 0.16697700613834335,
+      "unmet_rate_vs_persistence": 0.01921956336805173,
+      "unmet_rate_vs_persistence_std": 0.013103713579923737,
+      "empty_minutes_vs_persistence": -172293.9711250782,
+      "empty_minutes_vs_persistence_std": 22651.96609800116
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 2000,
+      "theta": 1.0,
+      "n_seeds": 5,
+      "unmet_rate": 0.4108827405641041,
+      "unmet_rate_std": 0.006719423409325373,
+      "mean_wait_served": 2.0096336604704668,
+      "mean_wait_served_std": 0.012621585458080408,
+      "mean_wait_penalized": 7.347096940832294,
+      "mean_wait_penalized_std": 0.09336461748386427,
+      "empty_minutes": 599104.7609871387,
+      "empty_minutes_std": 4907.7568307000365,
+      "reposition_minutes": 61934.91247224808,
+      "reposition_minutes_std": 1513.3051463401678,
+      "moved": 6829.8,
+      "moved_std": 199.58131175037406,
+      "mean_wait_penalized_vs_persistence": 0.14626358889546848,
+      "mean_wait_penalized_vs_persistence_std": 0.18052978950018045,
+      "unmet_rate_vs_persistence": 0.013086616741524993,
+      "unmet_rate_vs_persistence_std": 0.013462791132074032,
+      "empty_minutes_vs_persistence": -47622.62274799347,
+      "empty_minutes_vs_persistence_std": 14345.59970161269
+    },
+    {
+      "policy": "gbm_cal",
+      "fleet": 3000,
+      "theta": 0.1,
+      "n_seeds": 5,
+      "unmet_rate": 0.12928598819603918,
+      "unmet_rate_std": 0.0029831558362258957,
+      "mean_wait_served": 1.6639364825009302,
+      "mean_wait_served_std": 0.008683088042893607,
+      "mean_wait_penalized": 3.388112986943171,
+      "mean_wait_penalized_std": 0.03657844665546551,
+      "empty_minutes": 1490946.963587427,
+      "empty_minutes_std": 14703.45283528929,
+      "reposition_minutes": 833549.2482139111,
+      "reposition_minutes_std": 10430.413434443013,
+      "moved": 82883.2,
+      "moved_std": 950.3079500877597,
+      "mean_wait_penalized_vs_persistence": -0.024874446509265003,
+      "mean_wait_penalized_vs_persistence_std": 0.04786165784741789,
+      "unmet_rate_vs_persistence": 0.0030206326887730144,
+      "unmet_rate_vs_persistence_std": 0.003862085529182241,
+      "empty_minutes_vs_persistence": -225268.24529576302,
+      "empty_minutes_vs_persistence_std": 16409.490739860634
     },
     {
       "policy": "histavg",
@@ -4596,6 +5986,222 @@
       "unmet_rate_vs_persistence_std": 0.0029872111185466183,
       "empty_minutes_vs_persistence": -276108.34092946054,
       "empty_minutes_vs_persistence_std": 3353.442749387669
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 1000,
+      "theta": 0.1,
+      "n_seeds": 5,
+      "unmet_rate": 0.5712037130905837,
+      "unmet_rate_std": 0.008192187447355975,
+      "mean_wait_served": 1.586521229086226,
+      "mean_wait_served_std": 0.013663806641185793,
+      "mean_wait_penalized": 9.248395710422782,
+      "mean_wait_penalized_std": 0.10694415583047971,
+      "empty_minutes": 518158.8600774288,
+      "empty_minutes_std": 12117.146460309827,
+      "reposition_minutes": 209457.300055933,
+      "reposition_minutes_std": 4803.811316853091,
+      "moved": 21284.8,
+      "moved_std": 495.8847648395744,
+      "mean_wait_penalized_vs_persistence": -0.004827980843682056,
+      "mean_wait_penalized_vs_persistence_std": 0.1513945904921751,
+      "unmet_rate_vs_persistence": 0.0008321836445941422,
+      "unmet_rate_vs_persistence_std": 0.011642178259474247,
+      "empty_minutes_vs_persistence": -64938.398239326474,
+      "empty_minutes_vs_persistence_std": 18682.66261822085
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 1500,
+      "theta": 0.1,
+      "n_seeds": 5,
+      "unmet_rate": 0.39977740850608046,
+      "unmet_rate_std": 0.0034493558075101385,
+      "mean_wait_served": 1.689830092958329,
+      "mean_wait_served_std": 0.005093318622694152,
+      "mean_wait_penalized": 7.010935371783807,
+      "mean_wait_penalized_std": 0.046003506108124044,
+      "empty_minutes": 815479.5130848885,
+      "empty_minutes_std": 5099.572988592255,
+      "reposition_minutes": 355256.63187947276,
+      "reposition_minutes_std": 3119.1334982772723,
+      "moved": 35979.2,
+      "moved_std": 293.58082362443224,
+      "mean_wait_penalized_vs_persistence": -0.05889324577400146,
+      "mean_wait_penalized_vs_persistence_std": 0.14726553823856534,
+      "unmet_rate_vs_persistence": -0.0021086687265562732,
+      "unmet_rate_vs_persistence_std": 0.011622187086248214,
+      "empty_minutes_vs_persistence": -109779.14905934334,
+      "empty_minutes_vs_persistence_std": 26261.410989935994
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "theta": 0.02,
+      "n_seeds": 5,
+      "unmet_rate": 0.25911060372984,
+      "unmet_rate_std": 0.005795275140046701,
+      "mean_wait_served": 1.7406595747122833,
+      "mean_wait_served_std": 0.006751617127279837,
+      "mean_wait_penalized": 5.1763191710017695,
+      "mean_wait_penalized_std": 0.07308244800395873,
+      "empty_minutes": 1165194.1927866936,
+      "empty_minutes_std": 15943.635205827304,
+      "reposition_minutes": 580016.0742213249,
+      "reposition_minutes_std": 9728.789742248926,
+      "moved": 57518.0,
+      "moved_std": 927.8461618177876,
+      "mean_wait_penalized_vs_persistence": -0.04399910361931827,
+      "mean_wait_penalized_vs_persistence_std": 0.07835601096532598,
+      "unmet_rate_vs_persistence": -0.0003900860834034958,
+      "unmet_rate_vs_persistence_std": 0.005981500012648469,
+      "empty_minutes_vs_persistence": -182203.53226270675,
+      "empty_minutes_vs_persistence_std": 16478.111932813525
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "theta": 0.05,
+      "n_seeds": 5,
+      "unmet_rate": 0.2665658760628193,
+      "unmet_rate_std": 0.0032783580050173094,
+      "mean_wait_served": 1.7399754015754176,
+      "mean_wait_served_std": 0.005472808310327399,
+      "mean_wait_penalized": 5.274655101114677,
+      "mean_wait_penalized_std": 0.04088065155038354,
+      "empty_minutes": 1139581.5371379852,
+      "empty_minutes_std": 11862.901320220626,
+      "reposition_minutes": 560525.8836276054,
+      "reposition_minutes_std": 8200.882577979693,
+      "moved": 55673.4,
+      "moved_std": 742.6771169222868,
+      "mean_wait_penalized_vs_persistence": -0.04206663203666192,
+      "mean_wait_penalized_vs_persistence_std": 0.09188686149142718,
+      "unmet_rate_vs_persistence": 0.0002485972328130637,
+      "unmet_rate_vs_persistence_std": 0.0072968059443180655,
+      "empty_minutes_vs_persistence": -188386.5153699398,
+      "empty_minutes_vs_persistence_std": 22602.9950814062
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "theta": 0.1,
+      "n_seeds": 5,
+      "unmet_rate": 0.266962573774755,
+      "unmet_rate_std": 0.0037386271218909344,
+      "mean_wait_served": 1.7401123527442983,
+      "mean_wait_served_std": 0.004361022669560103,
+      "mean_wait_penalized": 5.280015703788182,
+      "mean_wait_penalized_std": 0.047267316050547965,
+      "empty_minutes": 1126515.5135919093,
+      "empty_minutes_std": 11103.440261383255,
+      "reposition_minutes": 547727.5080608368,
+      "reposition_minutes_std": 7299.0938477592945,
+      "moved": 54706.0,
+      "moved_std": 755.5732922754747,
+      "mean_wait_penalized_vs_persistence": -0.11757002603437457,
+      "mean_wait_penalized_vs_persistence_std": 0.05685088273678908,
+      "unmet_rate_vs_persistence": -0.005805450626562014,
+      "unmet_rate_vs_persistence_std": 0.004620993476387558,
+      "empty_minutes_vs_persistence": -167565.86854581832,
+      "empty_minutes_vs_persistence_std": 14246.744173587893
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "theta": 0.2,
+      "n_seeds": 5,
+      "unmet_rate": 0.2802598810788414,
+      "unmet_rate_std": 0.008307909087830913,
+      "mean_wait_served": 1.7391370360688179,
+      "mean_wait_served_std": 0.009691180284678708,
+      "mean_wait_penalized": 5.455647165664861,
+      "mean_wait_penalized_std": 0.10799000921707005,
+      "empty_minutes": 1074236.4074912549,
+      "empty_minutes_std": 20419.921816526734,
+      "reposition_minutes": 506260.3286594868,
+      "reposition_minutes_std": 12435.931632419117,
+      "moved": 50785.0,
+      "moved_std": 1145.9282263737114,
+      "mean_wait_penalized_vs_persistence": 0.049837315577886974,
+      "mean_wait_penalized_vs_persistence_std": 0.13575114987820158,
+      "unmet_rate_vs_persistence": 0.007150255870024191,
+      "unmet_rate_vs_persistence_std": 0.010215982691488424,
+      "empty_minutes_vs_persistence": -187726.54603686332,
+      "empty_minutes_vs_persistence_std": 26502.43372849254
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "theta": 0.5,
+      "n_seeds": 5,
+      "unmet_rate": 0.3266060747642955,
+      "unmet_rate_std": 0.010288823538763167,
+      "mean_wait_served": 1.7541742381439918,
+      "mean_wait_served_std": 0.007030014838118043,
+      "mean_wait_penalized": 6.080395115998127,
+      "mean_wait_penalized_std": 0.13184525046669482,
+      "empty_minutes": 883580.4163498878,
+      "empty_minutes_std": 22155.186046095725,
+      "reposition_minutes": 347568.4540462017,
+      "reposition_minutes_std": 12182.908234213335,
+      "moved": 36389.0,
+      "moved_std": 1186.3595576384084,
+      "mean_wait_penalized_vs_persistence": 0.20382870033302644,
+      "mean_wait_penalized_vs_persistence_std": 0.20152630846982658,
+      "unmet_rate_vs_persistence": 0.01871619804912881,
+      "unmet_rate_vs_persistence_std": 0.015565145902640633,
+      "empty_minutes_vs_persistence": -173524.00481886865,
+      "empty_minutes_vs_persistence_std": 30279.34133118916
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 2000,
+      "theta": 1.0,
+      "n_seeds": 5,
+      "unmet_rate": 0.41186787321541124,
+      "unmet_rate_std": 0.006260572706461343,
+      "mean_wait_served": 2.013484098563596,
+      "mean_wait_served_std": 0.012911679253614788,
+      "mean_wait_penalized": 7.362247668594792,
+      "mean_wait_penalized_std": 0.07752663417820078,
+      "empty_minutes": 597952.5148711205,
+      "empty_minutes_std": 7614.142397118828,
+      "reposition_minutes": 60613.08423690796,
+      "reposition_minutes_std": 978.1388317777046,
+      "moved": 6673.6,
+      "moved_std": 109.98545358364441,
+      "mean_wait_penalized_vs_persistence": 0.16141431665796535,
+      "mean_wait_penalized_vs_persistence_std": 0.091476834191323,
+      "unmet_rate_vs_persistence": 0.014071749392832112,
+      "unmet_rate_vs_persistence_std": 0.007326237185239213,
+      "empty_minutes_vs_persistence": -48774.86886401176,
+      "empty_minutes_vs_persistence_std": 10042.193120916398
+    },
+    {
+      "policy": "stgnn_cal",
+      "fleet": 3000,
+      "theta": 0.1,
+      "n_seeds": 5,
+      "unmet_rate": 0.12809325040881903,
+      "unmet_rate_std": 0.0022379412540080254,
+      "mean_wait_served": 1.6508900103972155,
+      "mean_wait_served_std": 0.0060130374756761475,
+      "mean_wait_penalized": 3.360814189972261,
+      "mean_wait_penalized_std": 0.03339242822759159,
+      "empty_minutes": 1481278.750635624,
+      "empty_minutes_std": 7496.87414606221,
+      "reposition_minutes": 828149.7551924705,
+      "reposition_minutes_std": 6137.855502634028,
+      "moved": 82263.8,
+      "moved_std": 374.6521052923632,
+      "mean_wait_penalized_vs_persistence": -0.05217324348017538,
+      "mean_wait_penalized_vs_persistence_std": 0.050793447191235526,
+      "unmet_rate_vs_persistence": 0.001827894901552854,
+      "unmet_rate_vs_persistence_std": 0.003395360260816879,
+      "empty_minutes_vs_persistence": -234936.45824756622,
+      "empty_minutes_vs_persistence_std": 8903.347298652436
     }
   ],
   "frontier_gain": {
@@ -4606,6 +6212,14 @@
         1167504.3793358803
       ],
       "share_of_oracle_gain": 0.772391996832305
+    },
+    "gbm_cal": {
+      "gain": 0.29720417997480686,
+      "cost_range": [
+        646727.3837351322,
+        1171678.6350308894
+      ],
+      "share_of_oracle_gain": 0.8318074588051125
     },
     "oracle": {
       "gain": 0.3572992485565581,
@@ -4622,6 +6236,14 @@
         1155099.8135024072
       ],
       "share_of_oracle_gain": 0.46545345278386707
+    },
+    "stgnn_cal": {
+      "gain": 0.29984987550891984,
+      "cost_range": [
+        646727.3837351322,
+        1165194.1927866936
+      ],
+      "share_of_oracle_gain": 0.8392121638102342
     }
   }
 }

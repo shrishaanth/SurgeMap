@@ -36,19 +36,23 @@ def render() -> None:
     st.subheader("RMSE by horizon")
     st.dataframe(pivot.round(3))
 
-    if {"ST-GNN", "Persistence", "Ridge regression"} <= set(pivot.index):
+    lead = "ST-GNN, calibrated" if "ST-GNN, calibrated" in pivot.index else "ST-GNN"
+    if {lead, "Persistence", "Ridge regression"} <= set(pivot.index):
         gain = pd.DataFrame({
-            "vs persistence": 100 * (1 - pivot.loc["ST-GNN"] / pivot.loc["Persistence"]),
-            "vs ridge regression": 100 * (1 - pivot.loc["ST-GNN"] / pivot.loc["Ridge regression"]),
-            "vs historical average": 100 * (1 - pivot.loc["ST-GNN"] / pivot.loc["Historical average"]),
-            **({"vs gradient boosting": 100 * (1 - pivot.loc["ST-GNN"] / pivot.loc["Gradient boosting"])}
+            "vs persistence": 100 * (1 - pivot.loc[lead] / pivot.loc["Persistence"]),
+            "vs ridge regression": 100 * (1 - pivot.loc[lead] / pivot.loc["Ridge regression"]),
+            "vs historical average": 100 * (1 - pivot.loc[lead] / pivot.loc["Historical average"]),
+            **({"vs gradient boosting, calibrated": 100 * (1 - pivot.loc[lead] / pivot.loc["Gradient boosting, calibrated"])}
+               if "Gradient boosting, calibrated" in pivot.index else {}),
+            **({"ST-GNN as trained vs gradient boosting as trained":
+                100 * (1 - pivot.loc["ST-GNN"] / pivot.loc["Gradient boosting"])}
                if "Gradient boosting" in pivot.index else {}),
         }).T
-        st.subheader("ST-GNN RMSE reduction (%)")
+        st.subheader(f"{lead}: RMSE reduction (%)")
         st.dataframe(gain.round(1))
-        st.caption("Positive means the ST-GNN is better. It clearly beats persistence, but its margin over a per-zone "
-                   "ridge regression is small, and a gradient-boosted model with simple lag, calendar and weather "
-                   "features is better at every horizon (negative row).")
+        st.caption("Positive means the ST-GNN is better. Calibrated models get the same two corrections fitted on the "
+                   "validation days: a per-zone bias correction and a blend with the time-of-day average. As "
+                   "trained, the ST-GNN trails gradient boosting (last row); once both are calibrated it leads.")
 
     st.subheader("Hotspot ranking")
     st.dataframe(frame.pivot(index="Model", columns="Horizon (min)", values="Top-3 hit rate").round(3))

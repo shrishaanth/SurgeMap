@@ -8,7 +8,7 @@ import streamlit as st
 import data
 from logic import moves_to_arcs
 
-POLICIES = ("persistence", "stgnn", "oracle", "histavg", "ridge")
+POLICIES = ("gbm", "stgnn", "persistence", "oracle", "histavg", "ridge", "ridge_hist")
 WARMUP = 36
 
 
@@ -29,7 +29,7 @@ def study_section() -> None:
     summary = pd.DataFrame(result["summary"])
     fleet = result["config"]["sweep_fleet"]
     st.subheader(f"Study: rider wait vs vehicle driving, {fleet:,} vehicles")
-    sweep = summary[(summary["fleet"] == fleet) & summary["policy"].isin(["persistence", "stgnn", "oracle"])].copy()
+    sweep = summary[(summary["fleet"] == fleet) & summary["policy"].isin(["persistence", "stgnn", "gbm", "oracle"])].copy()
     sweep["Policy"] = sweep["policy"].map(data.LABELS)
     sweep["kmin"] = sweep["empty_minutes"] / 1e3
     base = summary[(summary["fleet"] == fleet) & (summary["policy"] == "none")]
@@ -53,12 +53,16 @@ def study_section() -> None:
                "better: the same wait for less empty driving. Mean of the seeds shown in the tooltip data.")
 
     gain = result.get("frontier_gain", {})
-    if "stgnn" in gain:
-        text = (f"At equal driving cost the ST-GNN policy waits **{gain['stgnn']['gain']:.2f} min** less than "
-                "persistence on average")
-        if "share_of_oracle_gain" in gain["stgnn"]:
-            text += f" ({100 * gain['stgnn']['share_of_oracle_gain']:.0f}% of what perfect knowledge of demand would give)"
-        st.info(text + ".")
+    lines = []
+    for model in ("gbm", "stgnn"):
+        if model in gain:
+            line = f"{data.LABELS[model]}: **{gain[model]['gain']:.2f} min** less wait than persistence"
+            if "share_of_oracle_gain" in gain[model]:
+                line += f" ({100 * gain[model]['share_of_oracle_gain']:.0f}% of the gain from perfect demand knowledge)"
+            lines.append(line)
+    if lines:
+        bullets = "\n".join(f"- {line}" for line in lines)
+        st.info(f"At equal driving cost, averaged over the sweep:\n\n{bullets}")
 
     table = summary[(summary["theta"].isin([0.0, result["config"]["theta"]]))].copy()
     table["Policy"] = table["policy"].map(data.LABELS)

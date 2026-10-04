@@ -8,8 +8,8 @@ waits. It is part of the [FleetMg](https://github.com/shris-xyz/FleetMg) fleet m
 
 The repository contains:
 
-- a **forecaster**: a directed-graph ST-GNN trained on January 2024 NYC yellow-taxi trips, with persistence,
-  historical-average and per-zone ridge baselines
+- **forecasters**: a directed-graph ST-GNN trained on January 2024 NYC yellow-taxi trips, compared with
+  persistence, historical-average, ridge and gradient-boosted baselines
 - a **fleet simulator** that replays real pickups against a simulated fleet with nearest-vehicle dispatch
 - a **repositioning policy**: a small min-cost-flow linear program driven by any forecast
 - an **evaluation** of policies across fleet sizes, seeds and a cost trade-off sweep
@@ -59,13 +59,15 @@ Trained with AdamW, MSE loss, gradient clipping and early stopping on validation
 | Persistence | the last observed bin |
 | Historical average | mean training demand for the same zone, weekday and time of day |
 | Ridge regression | one ridge model per zone on the flattened 48-bin window |
+| Ridge + time-of-day average | the same ridge model with the historical average of each target bin as an extra input |
+| Gradient boosting | one scikit-learn `HistGradientBoostingRegressor` per horizon across all zones, Poisson loss; lags, same time yesterday and last week, historical average, calendar, weather, citywide demand |
 
 ---
 
 ## Results
 
-Held-out test window: 27 Jan 08:20 to 31 Jan 23:55 (1,329 forecast times, 258 zones). The model never saw it
-during fitting. The final model trained for 50 epochs on the corrected data (best validation epoch 47).
+Held-out test window: 27 Jan 08:20 to 31 Jan 23:55 (1,329 forecast times, 258 zones). No model saw it during
+fitting. The ST-GNN trained for 50 epochs on the corrected data (best validation epoch 47).
 
 ### Forecast accuracy
 
@@ -73,48 +75,78 @@ RMSE in pickups per zone per 5-minute bin (lower is better), from `artifacts/for
 
 | Model | 5 min | 15 min | 30 min | 60 min |
 |-------|-------|--------|--------|--------|
-| **ST-GNN** | **1.449** | **1.546** | **1.618** | 1.726 |
+| **Gradient boosting** | **1.429** | **1.523** | **1.558** | **1.610** |
+| ST-GNN | 1.449 | 1.546 | 1.618 | 1.726 |
+| Ridge + time-of-day average | 1.476 | 1.575 | 1.602 | 1.661 |
 | Ridge regression | 1.467 | 1.580 | 1.681 | 1.844 |
 | Persistence | 1.716 | 1.889 | 2.016 | 2.189 |
-| Historical average | 1.701 | 1.702 | 1.703 | **1.706** |
+| Historical average | 1.701 | 1.702 | 1.703 | 1.706 |
 
-ST-GNN RMSE reduction: **15.6 to 21.2% vs persistence**, 1.2 to 6.4% vs ridge, 14.8% vs historical average at 5 min
-shrinking to 5.0% at 30 min, and **1.2% worse than historical average at 60 min**. So the graph model earns
-its keep over naive baselines at every horizon, but its edge over a per-zone ridge is small, and at one hour ahead a
-plain time-of-day average is as good.
+The ST-GNN is clearly better than persistence (16 to 21%), but **it is not the best model**. A gradient-boosted
+model with simple features (recent lags, the same time yesterday and last week, calendar, weather, citywide
+demand) matches or beats it at every horizon. `scripts/accuracy_checks.py` puts 95% block-bootstrap intervals on
+the gap, RMSE(other) minus RMSE(ST-GNN), where positive means the ST-GNN is better:
 
-Hotspot ranking (mean number of the 5 busiest zones also among the 5 predicted): ST-GNN 3.16, 3.07, 2.98, 2.92
-for 5, 15, 30, 60 min, against 2.93 to 2.55 for persistence. The top-3 hit rate (at least one of the predicted top
-3 is a real top 3) is 0.92 to 0.94 for the ST-GNN but also 0.86 to 0.93 for every baseline, because the busiest
-zones barely change, so it does not separate the models. The training script's inline hotspot numbers rank
-zones by standardised demand rather than raw counts and are not comparable.
+| Other model | 5 min | 15 min | 30 min | 60 min |
+|-------------|-------|--------|--------|--------|
+| Ridge regression | +0.017 [-0.012, +0.050] | +0.034 [-0.001, +0.074] | +0.062 [+0.018, +0.112] | +0.119 [+0.065, +0.187] |
+| Historical average | +0.251 [+0.172, +0.332] | +0.156 [+0.088, +0.227] | +0.085 [+0.021, +0.154] | -0.020 [-0.084, +0.048] |
+| Ridge + time-of-day average | +0.027 [+0.003, +0.053] | +0.029 [-0.004, +0.062] | -0.016 [-0.049, +0.017] | -0.065 [-0.097, -0.035] |
+| Gradient boosting | -0.020 [-0.050, +0.005] | -0.023 [-0.048, +0.004] | -0.060 [-0.093, -0.025] | -0.116 [-0.167, -0.062] |
+
+Reading it honestly:
+
+- The ST-GNN's lead over a per-zone ridge regression is statistically indistinguishable from zero at 5 and 15
+  minutes, and clear only at 30 and 60 minutes.
+- At 60 minutes it ties a plain time-of-day average, and a linear model that is simply given that average as an
+  input beats it. The ST-GNN only sees the last 4 hours, so it misses the daily and weekly pattern.
+- Gradient boosting is better at every horizon, significantly so from 30 minutes on (6.7% lower RMSE at 60 minutes).
+  On this data the graph structure has not been shown to add accuracy beyond what simple features provide. A
+  controlled test (the same network with the graph removed) has not been run.
+
+Hotspot ranking, as the mean number of the 5 busiest zones also among the 5 predicted: gradient boosting 3.18 to
+3.04 and the ST-GNN 3.16 to 2.92 across 5 to 60 minutes, against 2.93 to 2.55 for persistence. The top-3 hit rate
+is 0.86 to 0.94 for every model, because the busiest zones barely change, so it does not separate them. The
+training script's inline hotspot numbers rank zones by standardised demand rather than raw counts and are not
+comparable.
 
 ### Repositioning
 
-Rider outcomes over the test window, by fleet size, with `theta = 0.1`. Cells show unmet requests (%) and mean
+Rider outcomes over the test window with `theta = 0.1`, by fleet size. Cells show unmet requests (%) and mean
 rider wait (minutes, unmet requests counted as 15). Mean over 5 seeds; the standard deviation across seeds is
 about 0.1 minute (0.16 at most).
 
-| Policy | 1000 vehicles | 1500 | 2000 | 3000 |
-|--------|---------------|------|------|------|
+| Policy driven by | 1000 vehicles | 1500 | 2000 | 3000 |
+|------------------|---------------|------|------|------|
 | Dispatch only | 61.5 / 9.98 | 49.7 / 8.49 | 42.8 / 7.63 | 33.7 / 6.50 |
 | Persistence | 57.0 / 9.25 | 40.2 / 7.07 | 27.3 / 5.40 | 12.6 / 3.41 |
 | Historical average | 57.7 / 9.32 | 40.6 / 7.08 | 27.9 / 5.44 | 15.3 / 3.79 |
 | Ridge | 57.9 / 9.34 | 41.5 / 7.20 | 28.9 / 5.57 | 15.1 / 3.76 |
+| Ridge + time-of-day average | 57.6 / 9.30 | 41.2 / 7.16 | 29.1 / 5.60 | 15.0 / 3.76 |
 | ST-GNN | 57.7 / 9.33 | 41.3 / 7.18 | 28.4 / 5.51 | 14.6 / 3.70 |
+| Gradient boosting | 57.8 / 9.34 | 40.6 / 7.09 | 27.2 / 5.34 | 12.9 / 3.40 |
 | Oracle (true demand) | 56.8 / 9.17 | 40.3 / 6.98 | 25.7 / 5.05 | 12.2 / 3.18 |
 
 ![Rider wait vs empty driving](results/tradeoff.png)
 
 - Forecast-driven repositioning clearly helps once the fleet is large enough: at 2,000 vehicles unmet requests fall
   from 42.8% to 26 to 29% and mean wait from 7.6 to about 5.4 minutes. At 1,000 vehicles there is little to gain.
-- At the same `theta`, persistence gives slightly better rider outcomes than the ST-GNN but drives more empty
-  (1.29M vs 1.11M vehicle-minutes at 2,000 vehicles). Comparing at equal driving cost along the `theta` sweep,
-  **the ST-GNN policy waits 0.17 minutes less than persistence on average, about 47% of the improvement perfect
-  demand knowledge would give** (evaluated at 2,000 vehicles only).
-- At 3,000 vehicles, persistence is better than the ST-GNN on rider wait at `theta = 0.1` (3.41 vs 3.70
-  minutes) while driving more; the equal-cost comparison was not run at that size.
-- Perfect foresight beats persistence by only 0.2 to 0.35 minutes of wait at 2,000 to 3,000 vehicles, which bounds how much any forecaster can add at a 15-minute decision horizon.
+- A better forecast gives a better policy. Gradient boosting is the best forecast-driven policy at 2,000 and 3,000
+  vehicles (5.34 and 3.40 minutes), level with persistence on wait while driving about 13% less empty at 2,000
+  vehicles (1.13M vs 1.29M vehicle-minutes). The ST-GNN is behind both (5.51 and 3.70).
+- Comparing at equal driving cost along the `theta` sweep at 2,000 vehicles, waiting less than persistence by:
+  gradient boosting **0.28 minutes (77% of the improvement perfect demand knowledge would give)**, the ST-GNN
+  0.17 minutes (47%). Comparing at equal `theta` is misleading because policies drive different amounts.
+- Perfect foresight beats persistence by only 0.2 to 0.35 minutes of wait at 2,000 to 3,000 vehicles, which bounds
+  how much any forecaster can add at a 15-minute decision horizon.
+
+### What this means
+
+The project's useful findings are that forecasts do improve repositioning, and that the choice of forecaster
+matters, but that the ST-GNN is not the right tool here: a much simpler, faster model is more accurate and gives
+a better policy. The most likely route to a better ST-GNN is to give it the daily and weekly pattern (as a
+residual over the time-of-day average), the weather channels, and more months of training data; none of that has
+been run.
 
 ---
 
@@ -132,8 +164,8 @@ between zones, given the forecast demand over the next 15 minutes. It minimises
 `theta × vehicle driving minutes + rider wait minutes + 15 × unserved requests`. Any forecast can drive it;
 `theta` sets the trade-off between fleet driving and rider waiting.
 
-**Evaluation** (`scripts/run_evaluation.py`). Policies driven by persistence, historical average, ridge, the
-ST-GNN and the true demand ("oracle", an upper bound) are compared with dispatch alone, over several fleet sizes
+**Evaluation** (`scripts/run_evaluation.py`). Policies driven by persistence, historical average, ridge, ridge
+with the time-of-day average, gradient boosting, the ST-GNN and the true demand ("oracle", an upper bound) are compared with dispatch alone, over several fleet sizes
 and seeds, with a `theta` sweep to trace each policy's wait vs driving curve. Policies are also compared with
 persistence at equal driving cost, so a policy that simply moves fewer vehicles is not mistaken for a worse one.
 
@@ -157,11 +189,14 @@ python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --windo
 # 3. Export count-space forecasts and baselines for the test split
 python scripts\export_predictions.py --checkpoint multihorizon_265_clipped.pt
 
-# 4. Run the repositioning study and draw the plots (a few minutes on 10 cores)
+# 4. Add the extra baselines (ridge + time-of-day average, gradient boosting) and the bootstrap intervals
+python scripts\accuracy_checks.py --merge
+
+# 5. Run the repositioning study and draw the plots (a few minutes on 10 cores)
 python scripts\run_evaluation.py --workers 10
 python scripts\plot_results.py
 
-# 5. Explore everything in the app
+# 6. Explore everything in the app
 python -m streamlit run app\streamlit_app.py
 ```
 
@@ -182,6 +217,7 @@ SurgeMap/
 │   ├── multihorizon_baseline.py Persistence and ridge baselines (z-score space)
 │   ├── hotspot_eval.py          Top-k hotspot evaluation of a checkpoint
 │   ├── export_predictions.py    Count-space forecasts for the simulator and app
+│   ├── accuracy_checks.py       Extra baselines, bootstrap intervals, merge into the forecasts
 │   ├── simulator.py             Fleet simulator with dispatch matching
 │   ├── reposition.py            Forecast-driven LP repositioning policy
 │   ├── run_evaluation.py        Policy comparison and trade-off sweep

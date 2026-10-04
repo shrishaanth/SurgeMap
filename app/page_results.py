@@ -41,11 +41,14 @@ def render() -> None:
             "vs persistence": 100 * (1 - pivot.loc["ST-GNN"] / pivot.loc["Persistence"]),
             "vs ridge regression": 100 * (1 - pivot.loc["ST-GNN"] / pivot.loc["Ridge regression"]),
             "vs historical average": 100 * (1 - pivot.loc["ST-GNN"] / pivot.loc["Historical average"]),
+            **({"vs gradient boosting": 100 * (1 - pivot.loc["ST-GNN"] / pivot.loc["Gradient boosting"])}
+               if "Gradient boosting" in pivot.index else {}),
         }).T
         st.subheader("ST-GNN RMSE reduction (%)")
         st.dataframe(gain.round(1))
-        st.caption("Positive means the ST-GNN is better. The margin over a per-zone ridge regression is small; "
-                   "the clear gains are over persistence at every horizon, and over the historical average at short horizons.")
+        st.caption("Positive means the ST-GNN is better. It clearly beats persistence, but its margin over a per-zone "
+                   "ridge regression is small, and a gradient-boosted model with simple lag, calendar and weather "
+                   "features is better at every horizon (negative row).")
 
     st.subheader("Hotspot ranking")
     st.dataframe(frame.pivot(index="Model", columns="Horizon (min)", values="Top-3 hit rate").round(3))

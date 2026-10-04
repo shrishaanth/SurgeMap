@@ -23,7 +23,7 @@ def render() -> None:
     c1, c2, c3 = st.columns([2, 1, 2])
     zone_id = c1.selectbox("Zone (busiest first)", list(labels), format_func=labels.get)
     minutes = c2.selectbox("Horizon", [h * 5 for h in horizons], format_func=lambda m: f"{m} min ahead")
-    shown = c3.multiselect("Models", data.MODELS, default=["stgnn", "persistence"], format_func=data.LABELS.get)
+    shown = c3.multiselect("Models", data.MODELS, default=["stgnn", "gbm"], format_func=data.LABELS.get)
 
     n = int(np.nonzero(zone_ids == zone_id)[0][0])
     h = horizons.index(minutes // 5)

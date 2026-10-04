@@ -70,3 +70,16 @@ def test_ridge_with_histavg_returns_nonnegative_counts_of_the_right_shape():
     test = np.arange(2 * WEEK + 48, 2 * WEEK + 100)
     out = ridge_with_histavg(features, demand, times, 2 * WEEK, train, test, 48, (1, 3))
     assert out.shape == (len(test), 2, 2) and (out >= 0).all()
+
+
+def test_gbm_spatial_features_are_flow_weighted_neighbour_demand():
+    times, demand = weekly_demand(weeks=3, zones=2)
+    weather = np.zeros((demand.shape[1], 2))
+    anchors = np.array([WEEK + 100])
+    graph = (np.array([[0.0, 1.0], [1.0, 0.0]]), np.array([[0.5, 0.5], [0.5, 0.5]]))
+    plain = gbm_features(demand, times, weather, 2 * WEEK, anchors, 1, np.array([0.5, 1.5]))
+    spatial = gbm_features(demand, times, weather, 2 * WEEK, anchors, 1, np.array([0.5, 1.5]), graph)
+    assert spatial.shape[1] == plain.shape[1] + 6
+    log_d = np.log1p(demand)
+    np.testing.assert_allclose(spatial[0, plain.shape[1]], log_d[1, anchors[0] - 1], rtol=1e-5)   # zone 0 <- zone 1
+    np.testing.assert_allclose(spatial[1, plain.shape[1]], log_d[0, anchors[0] - 1], rtol=1e-5)   # zone 1 <- zone 0

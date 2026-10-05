@@ -31,11 +31,12 @@ def make_data_dir(path):
 def test_dataset_returns_a_zero_prior_unless_one_is_given():
     features = np.random.default_rng(0).normal(size=(Z, 200, F)).astype(np.float32)
     plain = MultiHorizonDataset(features, 0, 200, window=12)
-    x, y, prior = plain[0]
+    x, y, prior, lagged = plain[0]
     assert x.shape == (Z, 12, F) and y.shape == (Z, 4) and torch.count_nonzero(prior) == 0
+    assert lagged.shape == (Z, 4, 0)
     given = np.random.default_rng(1).normal(size=(Z, 200, 4)).astype(np.float32)
     ds = MultiHorizonDataset(features, 0, 200, window=12, prior=given)
-    _, _, prior = ds[5]
+    _, _, prior, _ = ds[5]
     np.testing.assert_allclose(prior.numpy(), given[:, ds.times[5], :])
 
 
@@ -53,7 +54,7 @@ def test_model_adds_the_prior_and_uses_zone_embeddings():
 def test_prepare_inputs_appends_weather_and_builds_a_leak_free_prior(tmp_path):
     demand, train_end = make_data_dir(tmp_path)
     features = np.load(tmp_path / "features_clipped.npy")
-    out, prior = prepare_inputs(str(tmp_path), features, train_end, HORIZONS, use_weather=True, prior_kind="histavg")
+    out, prior, _ = prepare_inputs(str(tmp_path), features, train_end, HORIZONS, use_weather=True, prior_kind="histavg")
     assert out.shape == (Z, T, F + 2) and prior.shape == (Z, T, 4)
     np.testing.assert_allclose(out[0, :, F:], np.load(tmp_path / "weather.npy"))
     assert np.isfinite(prior).all() and np.abs(prior).max() <= 6.0
@@ -61,13 +62,13 @@ def test_prepare_inputs_appends_weather_and_builds_a_leak_free_prior(tmp_path):
     spiked = demand.copy()
     spiked[0, 300] += 5000.0                                # a train bin: must not move its own prior
     np.save(tmp_path / "demand.npy", spiked)
-    _, prior_spiked = prepare_inputs(str(tmp_path), features, train_end, HORIZONS, prior_kind="histavg")
+    _, prior_spiked, _ = prepare_inputs(str(tmp_path), features, train_end, HORIZONS, prior_kind="histavg")
     np.save(tmp_path / "demand.npy", demand)
-    _, prior_clean = prepare_inputs(str(tmp_path), features, train_end, HORIZONS, prior_kind="histavg")
+    _, prior_clean, _ = prepare_inputs(str(tmp_path), features, train_end, HORIZONS, prior_kind="histavg")
     # horizon index 0 targets bin t itself; the standardisation changes slightly, the average must not jump
     assert abs(prior_spiked[0, 300, 0] - prior_clean[0, 300, 0]) < 1.0
 
-    none_features, none_prior = prepare_inputs(str(tmp_path), features, train_end, HORIZONS)
+    none_features, none_prior, _ = prepare_inputs(str(tmp_path), features, train_end, HORIZONS)
     assert none_prior is None and none_features.shape == features.shape
 
 
@@ -120,8 +121,8 @@ def test_old_style_checkpoint_still_loads_without_extras(tmp_path):
 def test_log_space_prior_is_unbiased_where_the_count_space_prior_is_not(tmp_path):
     demand, train_end = make_data_dir(tmp_path)
     features = np.load(tmp_path / "features_clipped.npy")
-    _, prior_z = prepare_inputs(str(tmp_path), features, train_end, HORIZONS, prior_kind="histavg_z")
-    _, prior_c = prepare_inputs(str(tmp_path), features, train_end, HORIZONS, prior_kind="histavg")
+    _, prior_z, _ = prepare_inputs(str(tmp_path), features, train_end, HORIZONS, prior_kind="histavg_z")
+    _, prior_c, _ = prepare_inputs(str(tmp_path), features, train_end, HORIZONS, prior_kind="histavg")
     log_d = np.log1p(demand[:, :train_end].astype(np.float64))
     z = (log_d - log_d.mean(axis=1, keepdims=True)) / log_d.std(axis=1, keepdims=True)
     for zone in (0, 1, 2):

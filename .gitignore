@@ -19,3 +19,4 @@ __pycache__/
 .ipynb_checkpoints/
 /results/*.preds.npz
 /results/*.npz
+/results/pred_cache/

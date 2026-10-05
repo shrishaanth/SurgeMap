@@ -115,3 +115,18 @@ def test_old_style_checkpoint_still_loads_without_extras(tmp_path):
     loaded, features, a_out, *_ = load_checkpoint(str(ckpt), str(tmp_path))
     assert features.shape[2] == F and loaded.prior_array is None and a_out.any()
     assert loaded.zone_embedding is None
+
+
+def test_log_space_prior_is_unbiased_where_the_count_space_prior_is_not(tmp_path):
+    demand, train_end = make_data_dir(tmp_path)
+    features = np.load(tmp_path / "features_clipped.npy")
+    _, prior_z = prepare_inputs(str(tmp_path), features, train_end, HORIZONS, prior_kind="histavg_z")
+    _, prior_c = prepare_inputs(str(tmp_path), features, train_end, HORIZONS, prior_kind="histavg")
+    log_d = np.log1p(demand[:, :train_end].astype(np.float64))
+    z = (log_d - log_d.mean(axis=1, keepdims=True)) / log_d.std(axis=1, keepdims=True)
+    for zone in (0, 1, 2):
+        # the mean residual target - prior over the train split: ~0 for the log-space prior
+        assert abs((z[zone] - prior_z[zone, :train_end, 0]).mean()) < 0.05
+    quiet = 2                                   # mean 0.5 pickups: log of the mean exceeds the mean of the logs
+    assert (z[quiet] - prior_c[quiet, :train_end, 0]).mean() < -0.1
+    assert prior_z.shape == prior_c.shape == (Z, T, 4)

@@ -97,21 +97,29 @@ def prepare_inputs(data_dir: str, features: np.ndarray, train_end: int, horizons
                    use_weather: bool = False, prior_kind: str = "none"):
     """Optional extra inputs: weather channels appended to the features, and a prior [Z, T, H].
 
-    The "histavg" prior is the standardised time-of-day average of each target bin. Bins
-    inside the train split exclude their own value, so the prior does not leak the target.
+    The prior is a time-of-day average for each target bin, in the standardised log units the
+    network predicts. "histavg_z" averages the standardised log demand itself, which is what
+    the squared-error target calls for. "histavg" standardises the log of the average count,
+    which sits above the average of the logs (most for quiet zones); it is kept only so that
+    checkpoints trained with it still load. Bins inside the train split exclude their own
+    value, so the prior does not leak the target.
     """
     prior = None
     if use_weather:
         weather = np.load(os.path.join(data_dir, "weather.npy")).astype(np.float32)
         tiled = np.broadcast_to(weather[None], (features.shape[0],) + weather.shape)
         features = np.concatenate([features, tiled], axis=2)
-    if prior_kind == "histavg":
+    if prior_kind in ("histavg", "histavg_z"):
         demand = np.load(os.path.join(data_dir, "demand.npy")).astype(np.float64)
         times = np.load(os.path.join(data_dir, "times.npy"))
         total = demand.shape[1]
-        hist = histavg_for_bins(demand, times, train_end, np.arange(total))
         mu, sigma = zscore_params(demand, train_end)
-        hist_z = np.clip((np.log1p(hist) - mu[:, None]) / sigma[:, None], -CLIP, CLIP)
+        if prior_kind == "histavg_z":
+            z = np.clip((np.log1p(demand) - mu[:, None]) / sigma[:, None], -CLIP, CLIP)
+            hist_z = histavg_for_bins(z, times, train_end, np.arange(total))
+        else:
+            hist = histavg_for_bins(demand, times, train_end, np.arange(total))
+            hist_z = np.clip((np.log1p(hist) - mu[:, None]) / sigma[:, None], -CLIP, CLIP)
         prior = np.stack([hist_z[:, np.minimum(np.arange(total) + h - 1, total - 1)] for h in horizons],
                          axis=-1).astype(np.float32)
     elif prior_kind != "none":
@@ -206,7 +214,7 @@ def main():
     parser.add_argument("--out", default="multihorizon_stgnn_checkpoint.pt")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--shuffle", action="store_true", help="shuffle training windows each epoch")
-    parser.add_argument("--prior", choices=("none", "histavg"), default="none",
+    parser.add_argument("--prior", choices=("none", "histavg_z", "histavg"), default="none",
                         help="predict the residual over the time-of-day average of each target bin")
     parser.add_argument("--zone-dim", type=int, default=0, help="size of a learned per-zone embedding (0 = off)")
     parser.add_argument("--weather", action="store_true", help="append the weather channels to the inputs")

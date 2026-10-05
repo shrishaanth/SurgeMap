@@ -28,11 +28,13 @@ def seed_all(seed: int) -> None:
 class MultiHorizonDataset(Dataset):
     """Windows of features with multi-horizon targets and an optional per-target prior.
 
-    Each item is (x [Z, W, F], y [Z, H], prior [Z, H]); the prior is zero when none is given.
+    Each item is (x [Z, W, F], y [Z, H], prior [Z, H], lagged [Z, H, E]). The prior is zero
+    and the lagged inputs have E = 0 when they are not given.
     """
 
     def __init__(self, features: np.ndarray, start: int, end: int,
-                 window: int = 48, horizons=HORIZONS, prior: np.ndarray | None = None):
+                 window: int = 48, horizons=HORIZONS, prior: np.ndarray | None = None,
+                 lagged: np.ndarray | None = None):
         self.features = torch.as_tensor(features, dtype=torch.float32)
         self.start, self.end = int(start), int(end)
         self.window = int(window)
@@ -45,6 +47,10 @@ class MultiHorizonDataset(Dataset):
             raise ValueError("prior must have shape [Z,T,H]")
         self.prior = None if prior is None else torch.as_tensor(prior, dtype=torch.float32)
         self._no_prior = torch.zeros(features.shape[0], len(self.horizons))
+        if lagged is not None and lagged.shape[:3] != (features.shape[0], features.shape[1], len(self.horizons)):
+            raise ValueError("lagged must have shape [Z,T,H,E]")
+        self.lagged = None if lagged is None else torch.as_tensor(lagged, dtype=torch.float32)
+        self._no_lagged = torch.zeros(features.shape[0], len(self.horizons), 0)
         first = max(self.start, self.window)
         last = self.end - max(self.horizons)
         self.times = list(range(first, max(first, last + 1)))
@@ -58,7 +64,8 @@ class MultiHorizonDataset(Dataset):
         x = self.features[:, t - self.window:t, :]
         y = torch.stack([self.features[:, t + h - 1, 0] for h in self.horizons], dim=-1)
         prior = self._no_prior if self.prior is None else self.prior[:, t, :]
-        return x, y, prior
+        lagged = self._no_lagged if self.lagged is None else self.lagged[:, t]
+        return x, y, prior, lagged
 
 
 class MultiHorizonSTGNN(nn.Module):
@@ -66,17 +73,19 @@ class MultiHorizonSTGNN(nn.Module):
 
     With zone_dim > 0 each zone gets a learned embedding that is fed to the heads, so the
     network can tell zones apart. A prior passed to forward() is added to the output, so the
-    network then learns the residual over it.
+    network then learns the residual over it. With lag_dim > 0 each head also receives
+    lag_dim extra inputs for its own target bin (demand a day and a week earlier).
     """
 
     def __init__(self, n_features: int, hidden: int = 64, horizons=HORIZONS,
-                 n_zones: int = 0, zone_dim: int = 0):
+                 n_zones: int = 0, zone_dim: int = 0, n_layers: int = 1, lag_dim: int = 0):
         super().__init__()
         self.horizons = tuple(int(h) for h in horizons)
         self.spatial = DirectedGraphConv(n_features, hidden)
-        self.temporal = nn.GRU(hidden, hidden, num_layers=1, batch_first=True)
+        self.temporal = nn.GRU(hidden, hidden, num_layers=n_layers, batch_first=True)
+        self.lag_dim = int(lag_dim)
         self.zone_embedding = nn.Embedding(n_zones, zone_dim) if zone_dim > 0 else None
-        self.heads = nn.ModuleList(nn.Linear(hidden + zone_dim, 1) for _ in self.horizons)
+        self.heads = nn.ModuleList(nn.Linear(hidden + zone_dim + self.lag_dim, 1) for _ in self.horizons)
 
     def encode(self, x, a_out, a_in):
         spatial = self.spatial(x, a_out, a_in)
@@ -84,18 +93,47 @@ class MultiHorizonSTGNN(nn.Module):
         encoded, _ = self.temporal(spatial.reshape(b * z, w, hidden))
         return encoded[:, -1, :].reshape(b, z, hidden)
 
-    def forward(self, x, a_out, a_in, prior=None):
+    def forward(self, x, a_out, a_in, prior=None, lagged=None):
         encoded = self.encode(x, a_out, a_in)
         if self.zone_embedding is not None:
             zones = self.zone_embedding.weight.unsqueeze(0).expand(encoded.shape[0], -1, -1)
             encoded = torch.cat([encoded, zones], dim=-1)
-        out = torch.stack([head(encoded).squeeze(-1) for head in self.heads], dim=-1)
+        if self.lag_dim:
+            out = torch.stack([head(torch.cat([encoded, lagged[:, :, j, :]], dim=-1)).squeeze(-1)
+                               for j, head in enumerate(self.heads)], dim=-1)
+        else:
+            out = torch.stack([head(encoded).squeeze(-1) for head in self.heads], dim=-1)
         return out if prior is None else out + prior
 
 
+LAG_BINS = (288, 2016)          # one day and one week of 5-minute bins
+
+
+def lagged_inputs(features: np.ndarray, horizons) -> np.ndarray:
+    """For each anchor bin and horizon: standardised demand of the target bin one day and one
+    week earlier, plus a flag for each saying whether that bin exists. Shape [Z, T, H, 4].
+
+    The target bin is anchor + h - 1, so a lag of at least h bins is already observed at the
+    anchor; a day and a week both are for every horizon used here.
+    """
+    if max(horizons) > min(LAG_BINS):
+        raise ValueError("horizons must not exceed the shortest lag")
+    z, total = features.shape[0], features.shape[1]
+    out = np.zeros((z, total, len(horizons), 2 * len(LAG_BINS)), dtype=np.float32)
+    for j, h in enumerate(horizons):
+        target = np.minimum(np.arange(total) + h - 1, total - 1)
+        for k, lag in enumerate(LAG_BINS):
+            source = target - lag
+            ok = source >= 0
+            out[:, ok, j, 2 * k] = features[:, source[ok], 0]
+            out[:, ok, j, 2 * k + 1] = 1.0
+    return out
+
+
 def prepare_inputs(data_dir: str, features: np.ndarray, train_end: int, horizons,
-                   use_weather: bool = False, prior_kind: str = "none"):
-    """Optional extra inputs: weather channels appended to the features, and a prior [Z, T, H].
+                   use_weather: bool = False, prior_kind: str = "none", lag_features: bool = False):
+    """Optional extra inputs: weather channels appended to the features, a prior [Z, T, H],
+    and lagged head inputs [Z, T, H, E]. Returns (features, prior, lagged).
 
     The prior is a time-of-day average for each target bin, in the standardised log units the
     network predicts. "histavg_z" averages the standardised log demand itself, which is what
@@ -105,6 +143,7 @@ def prepare_inputs(data_dir: str, features: np.ndarray, train_end: int, horizons
     value, so the prior does not leak the target.
     """
     prior = None
+    lagged = lagged_inputs(features, horizons) if lag_features else None
     if use_weather:
         weather = np.load(os.path.join(data_dir, "weather.npy")).astype(np.float32)
         tiled = np.broadcast_to(weather[None], (features.shape[0],) + weather.shape)
@@ -124,7 +163,7 @@ def prepare_inputs(data_dir: str, features: np.ndarray, train_end: int, horizons
                          axis=-1).astype(np.float32)
     elif prior_kind != "none":
         raise ValueError(f"unknown prior: {prior_kind}")
-    return features, prior
+    return features, prior, lagged
 
 
 def zone_weights(data_dir: str, train_end: int, power: float) -> np.ndarray:
@@ -139,15 +178,29 @@ def zone_weights(data_dir: str, train_end: int, power: float) -> np.ndarray:
     return (weight / weight.mean()).astype(np.float32)
 
 
-def run_epoch(model, loader, a_out, a_in, device, optimizer=None, weight=None):
+def poisson_loss(pred, y, mu, sigma):
+    """Poisson negative log-likelihood of the pickup counts, for a network that predicts
+    standardised log demand. mu and sigma are the per-zone standardisation parameters."""
+    log1p_rate = (pred * sigma[None, :, None] + mu[None, :, None]).clamp(max=9.0)
+    rate = torch.expm1(log1p_rate).clamp(min=1e-3)
+    counts = torch.expm1(y * sigma[None, :, None] + mu[None, :, None]).clamp(min=0.0)
+    return (rate - counts * torch.log(rate)).mean()
+
+
+def run_epoch(model, loader, a_out, a_in, device, optimizer=None, weight=None, count_stats=None):
+    """One pass over the loader. Returns (objective, predictions, targets); the objective is
+    the root of the (weighted) squared error, or the mean Poisson loss when count_stats is given."""
     training = optimizer is not None
     model.train(training)
     total, count, predictions, targets = 0.0, 0, [], []
-    for x, y, prior in loader:
-        x, y, prior = x.to(device), y.to(device), prior.to(device)
-        pred = model(x, a_out, a_in, prior)
-        squared = (pred - y) ** 2
-        loss = squared.mean() if weight is None else (squared * weight[None, :, None]).mean()
+    for x, y, prior, lagged in loader:
+        x, y, prior, lagged = x.to(device), y.to(device), prior.to(device), lagged.to(device)
+        pred = model(x, a_out, a_in, prior, lagged)
+        if count_stats is not None:
+            loss = poisson_loss(pred, y, *count_stats)
+        else:
+            squared = (pred - y) ** 2
+            loss = squared.mean() if weight is None else (squared * weight[None, :, None]).mean()
         if training:
             optimizer.zero_grad()
             loss.backward()
@@ -159,7 +212,9 @@ def run_epoch(model, loader, a_out, a_in, device, optimizer=None, weight=None):
         targets.append(y.detach().cpu())
     if not predictions:
         raise ValueError("dataset has no windows; reduce window or check metadata splits")
-    return float(np.sqrt(total / max(count, 1))), torch.cat(predictions), torch.cat(targets)
+    mean = total / max(count, 1)
+    objective = mean if count_stats is not None else float(np.sqrt(mean))
+    return float(objective), torch.cat(predictions), torch.cat(targets)
 
 
 def scores(pred, target):
@@ -221,6 +276,11 @@ def main():
     parser.add_argument("--loss-power", type=float, default=0.0,
                         help="weight zones by ((1 + mean pickups) * sigma) ** power; 2 approximates count error")
     parser.add_argument("--no-graph", action="store_true", help="ablation: remove the neighbour terms")
+    parser.add_argument("--layers", type=int, default=1, help="number of GRU layers")
+    parser.add_argument("--lag-features", action="store_true",
+                        help="give each head the target bin's demand a day and a week earlier")
+    parser.add_argument("--loss", choices=("mse", "poisson"), default="mse",
+                        help="poisson: likelihood of the pickup counts instead of squared error in log units")
     args = parser.parse_args()
     seed_all(args.seed)
 
@@ -236,8 +296,9 @@ def main():
     with open(os.path.join(data_dir, "metadata.json"), encoding="utf-8") as f:
         meta = json.load(f)
     bounds = split_bounds(meta, features.shape[1])
-    features, prior = prepare_inputs(data_dir, features, bounds[0][1], HORIZONS, args.weather, args.prior)
-    datasets = [MultiHorizonDataset(features, *bound, args.window, prior=prior) for bound in bounds]
+    features, prior, lagged = prepare_inputs(data_dir, features, bounds[0][1], HORIZONS, args.weather,
+                                             args.prior, args.lag_features)
+    datasets = [MultiHorizonDataset(features, *bound, args.window, prior=prior, lagged=lagged) for bound in bounds]
     generator = torch.Generator().manual_seed(args.seed)
     loaders = [DataLoader(datasets[0], args.batch_size, shuffle=args.shuffle, generator=generator),
                DataLoader(datasets[1], args.batch_size, shuffle=False),
@@ -248,14 +309,20 @@ def main():
     weight = None
     if args.loss_power > 0:
         weight = torch.as_tensor(zone_weights(data_dir, bounds[0][1], args.loss_power), device=device)
+    count_stats = None
+    if args.loss == "poisson":
+        demand = np.load(os.path.join(data_dir, "demand.npy")).astype(np.float64)
+        count_stats = tuple(torch.as_tensor(v, dtype=torch.float32, device=device)
+                            for v in zscore_params(demand, bounds[0][1]))
     model = MultiHorizonSTGNN(features.shape[2], args.hidden, n_zones=features.shape[0],
-                              zone_dim=args.zone_dim).to(device)
+                              zone_dim=args.zone_dim, n_layers=args.layers,
+                              lag_dim=0 if lagged is None else lagged.shape[-1]).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     best, best_epoch, wait, history = float("inf"), 0, 0, []
     print(f"device={device} features={features.shape} split=" + "/".join(map(str, map(len, datasets))))
     for epoch in range(1, args.epochs + 1):
-        train_rmse, _, _ = run_epoch(model, loaders[0], a_out, a_in, device, optimizer, weight)
-        val_rmse, _, _ = run_epoch(model, loaders[1], a_out, a_in, device, weight=weight)
+        train_rmse, _, _ = run_epoch(model, loaders[0], a_out, a_in, device, optimizer, weight, count_stats)
+        val_rmse, _, _ = run_epoch(model, loaders[1], a_out, a_in, device, weight=weight, count_stats=count_stats)
         history.append({"epoch": epoch, "train_rmse": train_rmse, "val_rmse": val_rmse})
         print(f"epoch={epoch:03d} train_rmse={train_rmse:.5f} val_rmse={val_rmse:.5f}", flush=True)
         if val_rmse < best:

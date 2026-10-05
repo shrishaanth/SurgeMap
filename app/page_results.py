@@ -51,8 +51,8 @@ def render() -> None:
         st.subheader(f"{lead}: RMSE reduction (%)")
         st.dataframe(gain.round(1))
         st.caption("Positive means the ST-GNN is better. Calibrated models get the same two corrections fitted on the "
-                   "validation days: a per-zone bias correction and a blend with the time-of-day average. As "
-                   "trained, the ST-GNN trails gradient boosting (last row); once both are calibrated it leads.")
+                   "validation days: a per-zone bias correction and a blend with the time-of-day average. The "
+                   "ST-GNN leads gradient boosting both as trained (last row) and after calibration.")
 
     st.subheader("Hotspot ranking")
     st.dataframe(frame.pivot(index="Model", columns="Horizon (min)", values="Top-3 hit rate").round(3))

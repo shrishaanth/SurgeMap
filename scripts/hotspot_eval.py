@@ -119,8 +119,9 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
         else:
             raise ValueError("cannot infer hidden size from checkpoint; pass --hidden")
     train_end = _split_bounds(meta, features.shape[1])[0][1]
-    features, prior = prepare_inputs(data_dir, features, train_end, horizons,
-                                     bool(saved_args.get("weather")), saved_args.get("prior") or "none")
+    features, prior, lagged = prepare_inputs(data_dir, features, train_end, horizons,
+                                             bool(saved_args.get("weather")), saved_args.get("prior") or "none",
+                                             bool(saved_args.get("lag_features")))
     if saved_args.get("no_graph"):
         a_out, a_in = np.zeros_like(a_out), np.zeros_like(a_in)
     n_features = state["spatial.w_out.weight"].shape[1] if "spatial.w_out.weight" in state else features.shape[2]
@@ -131,8 +132,10 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
     # added (e.g. the dropoff z-score) uses the leading channels of the current features.
     features = features[:, :, :n_features]
     zone_dim = state["zone_embedding.weight"].shape[1] if "zone_embedding.weight" in state else 0
+    n_layers = sum(1 for key in state if key.startswith("temporal.weight_ih_l"))
     model = MultiHorizonSTGNN(features.shape[2], hidden=hidden, horizons=horizons,
-                              n_zones=features.shape[0], zone_dim=zone_dim).to(device)
+                              n_zones=features.shape[0], zone_dim=zone_dim, n_layers=max(n_layers, 1),
+                              lag_dim=0 if lagged is None else lagged.shape[-1]).to(device)
     try:
         model.load_state_dict(state)
     except RuntimeError as exc:
@@ -142,20 +145,23 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
         ) from exc
     model.eval()
     model.prior_array = prior      # [Z, T, H] or None; collect_predictions feeds it back to the model
+    model.lagged_array = lagged    # [Z, T, H, E] or None
     return model, features, a_out, a_in, horizons, meta
 
 
 def collect_predictions(model, features, a_out, a_in, bounds, window: int, horizons,
                         batch_size: int = 128, device=torch.device("cpu")) -> tuple:
     dataset = MultiHorizonDataset(features, *bounds[2], window, horizons,
-                                  prior=getattr(model, "prior_array", None))
+                                  prior=getattr(model, "prior_array", None),
+                                  lagged=getattr(model, "lagged_array", None))
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     preds, targets, anchors = [], [], []
     with torch.no_grad():
-        for x, y, prior in loader:
+        for x, y, prior, lagged in loader:
             x, y = x.to(device), y.to(device)
             out = model(x, torch.as_tensor(a_out, dtype=torch.float32, device=device),
-                        torch.as_tensor(a_in, dtype=torch.float32, device=device), prior.to(device))
+                        torch.as_tensor(a_in, dtype=torch.float32, device=device), prior.to(device),
+                        lagged.to(device))
             preds.append(out.detach().cpu().numpy())
             targets.append(y.detach().cpu().numpy())
     if not preds:

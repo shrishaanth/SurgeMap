@@ -272,6 +272,9 @@ The same steps are available as `make preprocess-265`, `make train-multi-265`, `
 | `--weather` | append the precipitation and temperature channels |
 | `--prior histavg_z` | predict the residual over the time-of-day average of each target bin |
 | `--no-graph` | remove the neighbour terms (ablation) |
+| `--layers N` | number of GRU layers |
+| `--lag-features` | give each output head the target bin's demand one day and one week earlier |
+| `--loss poisson` | train on the likelihood of the pickup counts instead of squared error in log units |
 
 With a weighted loss the `train_rmse` and `val_rmse` printed during training are the weighted objective and are not
 comparable across settings. `scripts/compare_checkpoints.py --calibrate` scores any checkpoints in pickups on the

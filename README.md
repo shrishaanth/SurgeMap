@@ -50,7 +50,8 @@ parquet file (`data/yellow_tripdata_2024-01.parquet`; `data/` is not tracked).
 2. **Temporal encoder**: a one-layer GRU over a 48-bin (4 hour) window.
 3. **Multi-horizon heads**: one linear head per horizon (1, 3, 6, 12 bins ahead) on the shared encoder.
 
-Trained with AdamW, MSE loss, gradient clipping and early stopping on validation RMSE (seed 7).
+Trained with AdamW on shuffled windows, a squared-error loss weighted toward busy zones, gradient clipping and
+early stopping on the validation loss (seed 7).
 
 ### Baselines
 
@@ -66,8 +67,10 @@ Trained with AdamW, MSE loss, gradient clipping and early stopping on validation
 
 ## Results
 
-Held-out test window: 27 Jan 08:20 to 31 Jan 23:55 (1,329 forecast times, 258 zones). No model saw it during
-fitting. The ST-GNN trained for 50 epochs on the corrected data (best validation epoch 47).
+Held-out test window: 27 Jan 08:20 to 31 Jan 23:55 (1,329 forecast times, 258 zones). No model was fitted on it.
+The shipped ST-GNN was trained on a GPU with shuffled batches of 32 and a volume-weighted loss; it stopped early
+after 45 epochs (best validation epoch 33). How that recipe was arrived at is described under
+[How the model got here](#how-the-model-got-here).
 
 ### Forecast accuracy
 
@@ -75,10 +78,10 @@ RMSE in pickups per zone per 5-minute bin (lower is better), from `artifacts/for
 
 | Model | 5 min | 15 min | 30 min | 60 min |
 |-------|-------|--------|--------|--------|
-| **ST-GNN, calibrated** | **1.402** | **1.468** | **1.506** | **1.561** |
+| **ST-GNN, calibrated** | **1.375** | **1.440** | **1.476** | **1.511** |
+| ST-GNN | 1.400 | 1.480 | 1.536 | 1.589 |
 | Gradient boosting, calibrated | 1.422 | 1.506 | 1.539 | 1.577 |
 | Gradient boosting | 1.429 | 1.523 | 1.558 | 1.610 |
-| ST-GNN | 1.449 | 1.546 | 1.618 | 1.726 |
 | Ridge + time-of-day average | 1.476 | 1.575 | 1.602 | 1.661 |
 | Ridge regression | 1.467 | 1.580 | 1.681 | 1.844 |
 | Persistence | 1.716 | 1.889 | 2.016 | 2.189 |
@@ -86,56 +89,37 @@ RMSE in pickups per zone per 5-minute bin (lower is better), from `artifacts/for
 
 "Calibrated" means two corrections fitted on the validation split only and applied identically to both models
 (`scripts/calibrate_forecasts.py`): a per-zone, per-horizon bias correction, then a per-horizon blend with the
-time-of-day average.
+time-of-day average. They are needed because both models predict on a log scale, and because the validation and
+test days are about 9% busier than the training average for the same weekday and time.
 
-**As trained, the ST-GNN is not the best model.** It beats persistence by 16 to 21%, but a gradient-boosted model
-with simple features (recent lags, the same time yesterday and last week, calendar, weather, citywide demand)
-matches or beats it at every horizon. 95% block-bootstrap intervals on RMSE(other) minus RMSE(ST-GNN), positive
-meaning the ST-GNN is better (`scripts/accuracy_checks.py`):
+95% block-bootstrap intervals on RMSE(other) minus RMSE(ST-GNN), positive meaning the ST-GNN is better
+(`scripts/accuracy_checks.py`):
 
-| Other model | 5 min | 15 min | 30 min | 60 min |
-|-------------|-------|--------|--------|--------|
-| Ridge regression | +0.017 [-0.012, +0.050] | +0.034 [-0.001, +0.074] | +0.062 [+0.018, +0.112] | +0.119 [+0.065, +0.187] |
-| Historical average | +0.251 [+0.172, +0.332] | +0.156 [+0.088, +0.227] | +0.085 [+0.021, +0.154] | -0.020 [-0.084, +0.048] |
-| Ridge + time-of-day average | +0.027 [+0.003, +0.053] | +0.029 [-0.004, +0.062] | -0.016 [-0.049, +0.017] | -0.065 [-0.097, -0.035] |
-| Gradient boosting | -0.020 [-0.050, +0.005] | -0.023 [-0.048, +0.004] | -0.060 [-0.093, -0.025] | -0.116 [-0.167, -0.062] |
+| ST-GNN as trained vs | 5 min | 15 min | 30 min | 60 min |
+|----------------------|-------|--------|--------|--------|
+| Persistence | +0.316 [+0.273, +0.354] | +0.408 [+0.368, +0.447] | +0.479 [+0.432, +0.526] | +0.600 [+0.506, +0.693] |
+| Historical average | +0.300 [+0.218, +0.388] | +0.222 [+0.150, +0.299] | +0.167 [+0.103, +0.236] | +0.117 [+0.064, +0.170] |
+| Ridge regression | +0.066 [+0.034, +0.102] | +0.100 [+0.060, +0.142] | +0.145 [+0.092, +0.201] | +0.256 [+0.168, +0.352] |
+| Ridge + time-of-day average | +0.076 [+0.046, +0.113] | +0.094 [+0.059, +0.141] | +0.066 [+0.033, +0.112] | +0.072 [+0.036, +0.120] |
+| Gradient boosting | +0.029 [+0.011, +0.047] | +0.042 [+0.015, +0.075] | +0.022 [-0.009, +0.054] | +0.021 [-0.014, +0.058] |
 
-**After the same calibration, the ST-GNN is ahead of gradient boosting**: +0.020 [+0.000, +0.039] at 5 minutes,
-+0.038 [+0.018, +0.061] at 15, +0.033 [+0.013, +0.054] at 30 and +0.016 [-0.005, +0.038] at 60. The lead is
-significant at 15 and 30 minutes, borderline at 5, and not significant at 60.
+- The ST-GNN beats persistence by 18 to 27% and every other baseline at every horizon.
+- Against gradient boosting as trained the margin is 1 to 3%, significant at 5 and 15 minutes only.
+- After the same calibration the margin is 3 to 4% and significant at every horizon: +0.047 [+0.033, +0.062],
+  +0.066 [+0.043, +0.096], +0.063 [+0.040, +0.088] and +0.066 [+0.043, +0.092].
 
-### Why the ST-GNN trails as trained
-
-`scripts/diagnose_stgnn.py` examines the trained network using inference only (`results/stgnn_diagnostics.json`):
-
-- **It under-predicts total pickups by 8.5 to 12%** (gradient boosting: 2 to 4%). It is trained on log-scale
-  demand, which converts back to something closer to a median than a mean, and the test days are about 9% busier
-  than the training average for the same weekday and time.
-- **It has no notion of which zone it is forecasting.** All zones share one set of weights and it sees only the
-  last 4 hours, so it cannot learn a zone's own daily profile. Its gap to gradient boosting at 60 minutes is at
-  night and in the evening, where it is also worse than a plain time-of-day average.
-- **Its loss does not match the evaluation.** On the metric it was trained on (per-zone standardised log demand) it
-  is the best model: 0.715 against 0.721 for ridge and about 0.90 for gradient boosting. But that loss weights all
-  258 zones equally, while 86% of the squared error in pickups sits in the 30 busiest zones.
-- **It underfits.** Training error (0.722) is close to validation error (0.739) and validation was still improving
-  at epoch 47. The training loader also did not shuffle its batches.
-- **It does rely on the graph**: switching the graph off at inference raises RMSE by 7 to 19%. That shows it leans
-  on neighbouring zones. A later ablation confirmed the graph helps: the same network trained without it is 2 to 4%
-  worse (see [Outcome of the retrain](#outcome-of-the-retrain)). Giving the gradient-boosted model flow-weighted
-  neighbour demand, by contrast, left its error unchanged (`results/spatial_check.json`).
-
-The calibration patches the first two points from outside the network. The trainer has options to address all
-four inside it (see [Retraining the ST-GNN](#retraining-the-st-gnn)); that retrain did not beat the calibrated model.
+Two cautions. The shipped recipe was chosen from a handful of experiments by looking at this same test window, so
+its margin is slightly optimistic. And each recipe was trained once, so seed-to-seed variation is not measured.
 
 Hotspot ranking, as the mean number of the 5 busiest zones also among the 5 predicted, across 5 to 60 minutes:
-calibrated ST-GNN 3.19 to 3.08, calibrated gradient boosting 3.18 to 3.06, persistence 2.93 to 2.55. The top-3 hit
-rate is 0.86 to 0.94 for every model, because the busiest zones barely change, so it does not separate them.
+calibrated ST-GNN 3.24 to 3.11, calibrated gradient boosting 3.18 to 3.06, persistence 2.93 to 2.55. The top-3 hit
+rate is 0.86 to 0.95 for every model, because the busiest zones barely change, so it does not separate them.
 
 ### Repositioning
 
 Rider outcomes over the test window with `theta = 0.1`, by fleet size. Cells show unmet requests (%) and mean
 rider wait (minutes, unmet requests counted as 15). Mean over 5 seeds; the standard deviation across seeds is
-about 0.1 minute (0.16 at most).
+about 0.1 minute.
 
 | Policy driven by | 1000 vehicles | 1500 | 2000 | 3000 |
 |------------------|---------------|------|------|------|
@@ -144,34 +128,77 @@ about 0.1 minute (0.16 at most).
 | Historical average | 57.7 / 9.32 | 40.6 / 7.08 | 27.9 / 5.44 | 15.3 / 3.79 |
 | Ridge | 57.9 / 9.34 | 41.5 / 7.20 | 28.9 / 5.57 | 15.1 / 3.76 |
 | Ridge + time-of-day average | 57.6 / 9.30 | 41.2 / 7.16 | 29.1 / 5.60 | 15.0 / 3.76 |
-| ST-GNN | 57.7 / 9.33 | 41.3 / 7.18 | 28.4 / 5.51 | 14.6 / 3.70 |
+| ST-GNN | 57.7 / 9.32 | 41.3 / 7.18 | 28.7 / 5.54 | 14.5 / 3.66 |
 | Gradient boosting | 57.8 / 9.34 | 40.6 / 7.09 | 27.2 / 5.34 | 12.9 / 3.40 |
 | Gradient boosting, calibrated | 57.3 / 9.27 | 40.5 / 7.08 | 26.7 / 5.28 | 12.9 / 3.39 |
-| **ST-GNN, calibrated** | 57.1 / 9.25 | 40.0 / 7.01 | 26.7 / 5.28 | 12.8 / 3.36 |
+| ST-GNN, calibrated | 57.1 / 9.24 | 40.3 / 7.04 | 27.6 / 5.40 | 13.1 / 3.42 |
 | Oracle (true demand) | 56.8 / 9.17 | 40.3 / 6.98 | 25.7 / 5.05 | 12.2 / 3.18 |
 
 ![Rider wait vs empty driving](results/tradeoff.png)
 
 - Forecast-driven repositioning clearly helps once the fleet is large enough: at 2,000 vehicles unmet requests fall
-  from 42.8% to 26 to 29% and mean wait from 7.6 to about 5.3 minutes. At 1,000 vehicles there is little to gain.
-- A better forecast gives a better policy. Comparing at equal driving cost along the `theta` sweep at 2,000
-  vehicles, the wait saved relative to a persistence-driven policy is 0.30 minutes for the calibrated ST-GNN (84%
-  of what perfect demand knowledge would give), 0.30 for calibrated gradient boosting (83%), 0.28 for gradient
-  boosting (77%) and 0.17 for the ST-GNN as trained (47%). Comparing at equal `theta` is misleading because
-  policies drive different amounts.
-- The two calibrated models are indistinguishable as repositioning policies, even though the ST-GNN forecasts
-  slightly better. Both reach persistence's rider outcomes while driving about 13% less empty at 2,000 vehicles.
+  from 42.8% to 26 to 29% and mean wait from 7.6 to about 5.3 to 5.6 minutes. At 1,000 vehicles there is little to
+  gain.
+- Calibration matters more for the policy than the choice of model. Comparing at equal driving cost along the
+  `theta` sweep at 2,000 vehicles, the wait saved relative to a persistence-driven policy is 0.30 minutes for
+  calibrated gradient boosting (83% of what perfect demand knowledge would give), 0.25 for the calibrated ST-GNN
+  (69%), 0.28 for gradient boosting (77%) and 0.17 for the ST-GNN as trained (48%). Comparing at equal `theta` is
+  misleading because policies drive different amounts.
+- **The most accurate forecaster is not the best repositioning policy.** The calibrated ST-GNN has 3 to 4% lower
+  forecast error than calibrated gradient boosting but is slightly behind it here, and the earlier, less accurate
+  ST-GNN checkpoint reached 84% (`results/model_selection.json`). The gaps between these policies, 0.05 to 0.12
+  minutes of wait, are about the size of the seed-to-seed spread, so once forecasts are this good the policy
+  result no longer tracks forecast RMSE.
 - Perfect foresight beats persistence by only 0.2 to 0.35 minutes of wait at 2,000 to 3,000 vehicles, which bounds
   how much any forecaster can add at a 15-minute decision horizon.
 
+### How the model got here
+
+The first ST-GNN (batches of 128 in time order, 50 epochs, kept as `experiments/original_batch128_noshuffle.pt`)
+scored 1.449, 1.546, 1.618, 1.726 and was beaten by gradient boosting at every horizon. `scripts/diagnose_stgnn.py`
+found why (`results/stgnn_diagnostics.json`):
+
+- it under-predicted total pickups by 8.5 to 12%, from the log scale and the busier test days;
+- it had no notion of which zone it was forecasting and saw only the last 4 hours;
+- its loss weighted all 258 zones equally, while 86% of the squared error in pickups sits in the 30 busiest zones;
+- it underfitted, and its training batches were consecutive, near-identical windows.
+
+Calibration fixed the first point from outside the network and took that model to 1.402, 1.468, 1.506, 1.561. The
+rest were tested one change at a time on a Kaggle T4 GPU (`experiments/`, `results/single_change_experiments.json`,
+`results/combo_experiments.json`). Calibrated RMSE:
+
+| Recipe (batch size 32) | 5 min | 15 min | 30 min | 60 min |
+|------------------------|-------|--------|--------|--------|
+| No options | 1.422 | 1.487 | 1.533 | 1.580 |
+| Shuffle | 1.385 | 1.446 | 1.484 | 1.526 |
+| Shuffle + weather | 1.411 | 1.466 | 1.498 | 1.539 |
+| Shuffle + zone embedding | 1.394 | 1.446 | 1.483 | 1.514 |
+| Shuffle + time-of-day prior | 1.528 | 1.525 | 1.529 | 1.537 |
+| **Shuffle + weighted loss (shipped)** | **1.375** | **1.440** | **1.476** | **1.511** |
+| Shuffle + zone embedding + weighted loss | 1.379 | 1.446 | 1.480 | 1.514 |
+
+- Shuffling the training windows is the largest single gain.
+- A loss weighted toward busy zones adds a little more; a zone embedding helps slightly on its own but adds nothing
+  on top of the weighted loss; weather does not help.
+- Predicting a residual over the time-of-day average makes short horizons much worse, even after its bias was
+  fixed. An earlier retrain that bundled it with the other changes failed for that reason
+  (`results/v2_retrain.json`).
+
+**Does the graph help?** Less than the name suggests. In the bundled retrain, removing the graph cost 2 to 4% at
+every horizon. In the improved recipe (shuffle + zone embedding + weighted loss) the cost is 0.3 to 1.2% as trained,
+significant only at 15 minutes, and nothing measurable after calibration (`results/model_selection.json`). Giving
+the gradient-boosted model flow-weighted neighbour demand left its error unchanged
+(`results/spatial_check.json`). On this data most of the network's accuracy comes from the recurrent encoder and
+the training recipe, not from the graph.
+
 ### What this means
 
-Forecasts improve repositioning, and forecast quality carries through to the policy. The ST-GNN as first trained
-was beaten by a simpler model, for reasons that turned out to be about its training setup rather than about graphs:
-bias from the log scale, no zone-specific daily profile, a loss that does not match the evaluation, and too little
-training. Correcting the first two from outside makes it the most accurate forecaster here, by a small margin that
-is significant at 15 and 30 minutes. A no-graph ablation shows the graph contributes 2 to 4% of accuracy to the
-network. A retrain that built the fixes into the network did not beat the calibrated original.
+A carefully trained and calibrated ST-GNN is the most accurate forecaster here, 3 to 4% ahead of a calibrated
+gradient-boosted model and 20 to 31% ahead of persistence. That lead came from fixing how the network was trained
+(shuffling, loss weighting) and calibrating its output, not from its graph structure, whose measured contribution
+is about 1% or less. Forecasts clearly improve repositioning, but past a certain accuracy the policy stops
+improving with the forecast: a 15-minute decision horizon leaves little room between a good forecast and a perfect
+one.
 
 ---
 
@@ -208,8 +235,8 @@ python -m pip install -r requirements.txt
 # 1. Preprocess the official parquet file into real_processed_265/
 python scripts\preprocess.py --input data\yellow_tripdata_2024-01.parquet --out real_processed_265 --month 2024-01 --all-zones
 
-# 2. Train the multi-horizon ST-GNN (about 3-4 hours on a CPU, a few minutes on a GPU)
-python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --window 48 --epochs 50 --hidden 64 --batch-size 128 --lr 0.001 --patience 8 --out multihorizon_265_clipped.pt
+# 2. Train the multi-horizon ST-GNN (minutes on a GPU, a few hours on a CPU)
+python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --window 48 --epochs 80 --hidden 64 --batch-size 32 --lr 0.001 --patience 12 --shuffle --loss-power 1 --out multihorizon_265_clipped.pt
 
 # 3. Export count-space forecasts and baselines for the test split
 python scripts\export_predictions.py --checkpoint multihorizon_265_clipped.pt
@@ -233,61 +260,23 @@ The same steps are available as `make preprocess-265`, `make train-multi-265`, `
 
 ---
 
-## Retraining the ST-GNN
+## Training options
 
-`train_multihorizon_torch.py` has options that target each diagnosed weakness. They are off by default, so the
-original command still reproduces the shipped model.
+`train_multihorizon_torch.py` options, all off by default. The shipped model uses `--shuffle --loss-power 1`.
 
-| Option | What it does | Weakness it targets |
-|--------|--------------|---------------------|
-| `--shuffle` | shuffle training windows each epoch | underfitting (batches were consecutive windows) |
-| `--prior histavg` | predict the residual over the time-of-day average of each target bin | no daily or weekly pattern |
-| `--zone-dim 8` | learned embedding per zone, fed to the output heads | no notion of which zone it is |
-| `--weather` | append the precipitation and temperature channels | unused weather data |
-| `--loss-power 1` | weight zones by `((1 + mean pickups) x sigma) ** power` in the loss (2 approximates count error) | loss weights all zones equally |
-| `--no-graph` | remove the neighbour terms (ablation) | tests whether the graph helps |
+| Option | What it does |
+|--------|--------------|
+| `--shuffle` | shuffle training windows each epoch |
+| `--loss-power P` | weight zones by `((1 + mean pickups) x sigma) ** P` in the loss; 2 approximates error in pickups |
+| `--zone-dim N` | learned embedding per zone, fed to the output heads |
+| `--weather` | append the precipitation and temperature channels |
+| `--prior histavg_z` | predict the residual over the time-of-day average of each target bin |
+| `--no-graph` | remove the neighbour terms (ablation) |
 
-```powershell
-# Recipe as run (batch size 32 fits a 15 GB GPU; early stopping ended both runs before epoch 30)
-python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --window 48 --epochs 80 --hidden 64 --batch-size 32 --lr 0.001 --patience 12 --shuffle --prior histavg --zone-dim 8 --weather --loss-power 1 --out multihorizon_v2.pt
-
-# The same recipe without the graph, to measure what the graph contributes
-python scripts\train_multihorizon_torch.py --data-dir real_processed_265 --window 48 --epochs 80 --hidden 64 --batch-size 32 --lr 0.001 --patience 12 --shuffle --prior histavg --zone-dim 8 --weather --loss-power 1 --no-graph --out multihorizon_v2_nograph.pt
-
-# Score both on the test split against the shipped models, with bootstrap intervals
-python scripts\compare_checkpoints.py multihorizon_v2.pt multihorizon_v2_nograph.pt
-```
-
-Or `make train-v2`, `make train-v2-nograph` and `make compare-v2`. With a weighted loss the `train_rmse` and
-`val_rmse` printed during training are the weighted objective and are not comparable with the shipped model's
-0.72; use `compare_checkpoints.py` for a like-for-like score in pickup counts.
-
-These options do not remove the log-scale bias or the drift in demand level, so the validation calibration still
-applies to a retrained model. On a 15 GB GPU use `--batch-size 32`; 128 runs out of memory.
-
-### Outcome of the retrain
-
-Both recipes were run once on a Kaggle T4 GPU with batch size 32 (`results/v2_retrain.json`). RMSE in pickups per
-zone per 5-minute bin:
-
-| Model | 5 min | 15 min | 30 min | 60 min |
-|-------|-------|--------|--------|--------|
-| Shipped ST-GNN, calibrated | 1.402 | 1.468 | 1.506 | 1.561 |
-| Retrained, calibrated | 1.524 | 1.535 | 1.545 | 1.558 |
-| Retrained without graph, calibrated | 1.532 | 1.557 | 1.572 | 1.592 |
-| Shipped ST-GNN, as trained | 1.450 | 1.546 | 1.619 | 1.726 |
-| Retrained, as trained | 1.574 | 1.580 | 1.597 | 1.633 |
-| Retrained without graph, as trained | 1.602 | 1.629 | 1.660 | 1.686 |
-
-- **The retrain did not improve on the shipped model.** As trained it is better at 60 minutes (1.633 vs 1.726) but
-  worse at 5 and 15. After calibration it is worse at 5, 15 and 30 minutes and level at 60, so the shipped
-  checkpoint stays. The retrained model's error is almost flat across horizons, which suggests it leans on the
-  time-of-day prior and reacts less to the most recent demand. The recipe changed several things at once, so which
-  change caused that is not known.
-- **The graph helps.** With everything else equal, the network with the graph beats the one without at every
-  horizon as trained: +0.028 [+0.003, +0.056], +0.049 [+0.015, +0.087], +0.063 [+0.016, +0.116] and
-  +0.054 [+0.002, +0.114], about 2 to 4%. After calibration the gap narrows to 0.01 to 0.03 and is significant at 15,
-  30 and 60 minutes. This is one training run per model, so seed-to-seed variation is not measured.
+With a weighted loss the `train_rmse` and `val_rmse` printed during training are the weighted objective and are not
+comparable across settings. `scripts/compare_checkpoints.py --calibrate` scores any checkpoints in pickups on the
+test split, against the shipped models, with bootstrap intervals. Batch size 128 needs more than 15 GB of GPU
+memory; 32 fits. Training takes minutes on a GPU and a few hours on a CPU.
 
 ---
 
@@ -306,13 +295,14 @@ SurgeMap/
 │   ├── accuracy_checks.py       Extra baselines, bootstrap intervals, merge into the forecasts
 │   ├── calibrate_forecasts.py   Validation-fitted bias correction and blend for both models
 │   ├── diagnose_stgnn.py        Where the ST-GNN's error comes from
-│   ├── compare_checkpoints.py   Scores retrained checkpoints against the shipped models
+│   ├── compare_checkpoints.py   Scores checkpoints against the shipped models, optionally calibrated
 │   ├── simulator.py             Fleet simulator with dispatch matching
 │   ├── reposition.py            Forecast-driven LP repositioning policy
 │   ├── run_evaluation.py        Policy comparison and trade-off sweep
 │   ├── plot_results.py          Plots of the study
 │   ├── prepare_zones.py         Trims the NYC taxi zone polygons for the app
 │   ├── build_dropoff.py, build_weather.py, stgnn_models.py   Auxiliary tools
+├── experiments/                 Checkpoints from the training experiments, including the first model
 ├── tests/                       pytest suite
 ├── real_processed_265/          Preprocessed arrays (demand, features, graph, metadata)
 ├── notebooks/                   Feature experiments

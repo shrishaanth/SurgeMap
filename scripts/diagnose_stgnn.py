@@ -17,7 +17,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from accuracy_checks import block_bootstrap_gap, gbm_predictions, histavg_for_bins
+from accuracy_checks import block_bootstrap_gap, gbm_predictions, histavg_for_bins, load_weather
 from export_predictions import gather_targets, to_counts, train_stats
 from hotspot_eval import collect_predictions, load_checkpoint, split_bounds
 
@@ -160,7 +160,7 @@ def main() -> None:
     if os.path.exists(cache):
         gbm_both = np.load(cache)["pred"].astype(np.float64)
     else:
-        weather = np.load(os.path.join(args.data_dir, "weather.npy"))
+        weather = load_weather(args.data_dir, demand.shape[1])
         train_anchors = np.arange(args.window, train_end - max(horizons) + 1)
         gbm_both = gbm_predictions(demand, times, weather, train_end, train_anchors,
                                    np.concatenate([val_anchors, test_anchors]), horizons).astype(np.float64)

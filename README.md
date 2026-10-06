@@ -116,6 +116,24 @@ as a feature and so gains from the blend.
 - Pickups arrive at random, so even a perfectly known demand rate leaves an RMSE of about 1.16 here. The
   calibrated ST-GNN is 15% above that floor at 5 minutes and 24% at 60 (`scripts/headroom_analysis.py`).
 
+**Where the lead comes from** (`scripts/regime_analysis.py`, `results/regime_analysis.json`). Splitting the test
+window by how unusual citywide demand is, and by how busy the zone is, the calibrated ST-GNN's RMSE is lower than
+calibrated gradient boosting's by:
+
+| Part of the test window | 5 min | 15 min | 30 min | 60 min |
+|-------------------------|-------|--------|--------|--------|
+| Demand far below usual (lowest 5% of periods) | 3.9% | 6.0%* | 9.3%* | 6.1% |
+| Ordinary periods (middle 50%) | 0.9% | 1.3% | 1.3% | 1.5% |
+| Demand far above usual (top 5% of periods) | 2.6%* | 3.5%* | 3.4%* | 4.0% |
+| Busiest 10% of zones | 1.5% | 1.9% | 2.0% | 2.3% |
+| Quietest 70% of zones | 0.0% | 0.0% | 0.0% | 0.0% |
+
+\* the 95% interval includes zero; each 5% slice holds only about 66 forecast times, so these are uncertain.
+
+The ST-GNN is ahead in every slice, never behind. Its lead is two to four times larger when demand departs from
+the usual pattern than in ordinary periods, and it sits entirely in the busy zones: in the quietest 70% of zones,
+which see almost no pickups, the two models are identical.
+
 Two cautions. The recipe was chosen over several rounds of experiments by looking at this same test window, so
 the ST-GNN's margin is somewhat optimistic; the baselines were not tuned that way. Seed-to-seed variation for one
 network is about 0.002 RMSE at 5 minutes and 0.003 at 60, smaller than the gap to gradient boosting but not by
@@ -352,6 +370,7 @@ SurgeMap/
 │   ├── hotspot_eval.py          Top-k hotspot evaluation of a checkpoint
 │   ├── export_predictions.py    Count-space forecasts for the simulator and app
 │   ├── accuracy_checks.py       Extra baselines, bootstrap intervals, merge into the forecasts
+│   ├── regime_analysis.py       Accuracy by how unusual the period and how busy the zone is
 │   ├── calibrate_forecasts.py   Validation-fitted bias correction and blend for both models
 │   ├── diagnose_stgnn.py        Where the ST-GNN's error comes from
 │   ├── compare_checkpoints.py   Scores checkpoints against the shipped models, optionally calibrated

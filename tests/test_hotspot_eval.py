@@ -61,3 +61,18 @@ def test_resolve_checkpoints_accepts_a_file_a_list_and_a_directory(tmp_path):
     empty.mkdir()
     with pytest.raises(FileNotFoundError):
         resolve_checkpoints(str(empty))
+
+
+def test_checkpoint_is_refused_on_a_dataset_it_was_not_trained_on(tmp_path):
+    import pytest
+    _write_data_dir(tmp_path, n_channels=7)
+    model = MultiHorizonSTGNN(7, hidden=8)
+    other = tmp_path / "other.pt"
+    torch.save({"model": model.state_dict(), "args": {"hidden": 8, "data_dir": "some_other_dataset"},
+                "horizons": HORIZONS}, other)
+    with pytest.raises(ValueError, match="trained on"):
+        load_checkpoint(str(other), str(tmp_path))
+    same = tmp_path / "same.pt"
+    torch.save({"model": model.state_dict(), "args": {"hidden": 8, "data_dir": f"elsewhere/{tmp_path.name}"},
+                "horizons": HORIZONS}, same)
+    load_checkpoint(str(same), str(tmp_path))          # same dataset name in another location is fine

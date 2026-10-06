@@ -100,3 +100,17 @@ def test_boosted_model_stays_bounded_with_a_nearly_empty_zone():
     assert pred.shape == (len(test), 3, 2) and np.isfinite(pred).all()
     assert pred.max() < 100.0 and pred[:, 2].max() < 1.0
     assert abs(pred[:, 0].mean() - 6.0) < 0.5
+
+
+def test_boosted_features_leave_out_the_time_of_day_average_unless_asked():
+    times, demand = weekly_demand(weeks=3, zones=2)
+    weather = np.zeros((demand.shape[1], 2))
+    anchors = np.array([WEEK + 100, WEEK + 101])
+    level = np.array([0.5, 1.5])
+    plain = gbm_features(demand, times, weather, 2 * WEEK, anchors, 3, level)
+    with_average = gbm_features(demand, times, weather, 2 * WEEK, anchors, 3, level, use_histavg=True)
+    assert with_average.shape[1] == plain.shape[1] + 1
+    expected = np.log1p(histavg_for_bins(demand, times, 2 * WEEK, anchors + 3 - 1)).T.reshape(-1)
+    extra = [c for c in range(with_average.shape[1]) if np.allclose(with_average[:, c], expected, rtol=1e-5)]
+    assert extra                                                   # the average is a column only when asked for
+    assert not any(np.allclose(plain[:, c], expected, rtol=1e-5) for c in range(plain.shape[1]))

@@ -25,6 +25,12 @@ def parse_args():
     p.add_argument("--all-zones", action="store_true")
     p.add_argument("--chunksize", type=int, default=400_000)
     p.add_argument("--train-frac", type=float, default=0.70)
+    p.add_argument("--start", default=None, help="first day (YYYY-MM-DD); with --end, replaces --month")
+    p.add_argument("--end", default=None, help="day after the last day (YYYY-MM-DD)")
+    p.add_argument("--zone-ids-from", default=None,
+                   help="directory with a zone_ids.npy to reuse, so zones and their order match that dataset")
+    p.add_argument("--train-end", default=None, help="timestamp where the train split ends, replacing --train-frac")
+    p.add_argument("--val-end", default=None, help="timestamp where the validation split ends")
     return p.parse_args()
 
 
@@ -63,8 +69,17 @@ def main():
     if not all_zones and (a.top_k < 1 or not 0 < a.train_frac < 1):
         raise ValueError("--top-k must be positive and --train-frac must be in (0, 1)")
     os.makedirs(a.out, exist_ok=True)
-    start = pd.Timestamp(f"{a.month}-01")
-    end = start + pd.offsets.MonthBegin(1)
+    if a.start and a.end:
+        start, end = pd.Timestamp(a.start), pd.Timestamp(a.end)
+    else:
+        start = pd.Timestamp(f"{a.month}-01")
+        end = start + pd.offsets.MonthBegin(1)
+    inputs = [part.strip() for part in a.input.split(",") if part.strip()]
+
+    def all_chunks():
+        for path in inputs:
+            yield from iter_chunks(path, cols, a.chunksize)
+
     days = (end - start).days
     T = days * 24 * 60 // 5
     grid = pd.date_range(start=start, periods=T, freq=STEP)
@@ -78,7 +93,7 @@ def main():
     duration_count = Counter()
 
     print(f"[preprocess] pass 1: {a.input}; strict range [{start}, {end})")
-    for chunk in iter_chunks(a.input, cols, a.chunksize):
+    for chunk in all_chunks():
         total_rows += len(chunk)
         pu, do, pu_id, do_id, time_ok, loc_ok, dur_ok, duration = row_validity(chunk, start, end)
         invalid_time += int((~time_ok).sum())
@@ -99,7 +114,9 @@ def main():
 
     if valid_rows == 0:
         raise RuntimeError(f"No valid records found in month {a.month}")
-    if all_zones:
+    if a.zone_ids_from:
+        zone_ids = [int(z) for z in np.load(os.path.join(a.zone_ids_from, "zone_ids.npy"))]
+    elif all_zones:
         zone_ids = sorted(pickup_counts.keys())
     else:
         zone_ids = [z for z, _ in pickup_counts.most_common(a.top_k)]
@@ -135,7 +152,7 @@ def main():
     dropoff = np.zeros((Z, T), dtype=np.float32)
     grid_index = {t: i for i, t in enumerate(grid)}
     print(f"[preprocess] pass 2: aggregating complete grid ({T} bins)")
-    for chunk in iter_chunks(a.input, cols, a.chunksize):
+    for chunk in all_chunks():
         pu, do, pu_id, do_id, time_ok, loc_ok, dur_ok, _ = row_validity(chunk, start, end)
         ok = time_ok & loc_ok & dur_ok
         if not ok.any():
@@ -155,7 +172,13 @@ def main():
             do_times = np.fromiter((grid_index[t] for t in do_bins[do_keep]), dtype=np.int64)
             np.add.at(dropoff, (do_rows, do_times), 1)
 
-    train_end = max(1, int(T * a.train_frac))
+    def bin_of(stamp):
+        index = int((pd.Timestamp(stamp) - start) / pd.Timedelta(STEP))
+        if not 0 < index <= T:
+            raise ValueError(f"{stamp} is outside the processed range")
+        return index
+
+    train_end = bin_of(a.train_end) if a.train_end else max(1, int(T * a.train_frac))
 
     def log_zscore(counts):
         log_counts = np.log1p(counts)
@@ -194,9 +217,11 @@ def main():
         np.save(os.path.join(a.out, name), value)
 
     train_end = int(train_end)
-    val_end = train_end + int((T - train_end) / 2)
+    val_end = bin_of(a.val_end) if a.val_end else train_end + int((T - train_end) / 2)
+    if not train_end < val_end <= T:
+        raise ValueError("the validation split must end after the train split and inside the range")
     metadata = {
-        "input": os.path.abspath(a.input), "month": a.month,
+        "input": [os.path.abspath(path) for path in inputs], "month": a.month,
         "start": start.isoformat(), "end": end.isoformat(), "step": "5min",
         "grid": {"start": start.isoformat(), "end_exclusive": end.isoformat(),
                  "periods": T, "frequency": "5min", "complete": True},

@@ -14,7 +14,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from hotspot_eval import collect_predictions, load_checkpoint, ranking_metrics, split_bounds
+from hotspot_eval import (collect_predictions, load_checkpoint, ranking_metrics, resolve_checkpoints,
+                          split_bounds)
 from train_multihorizon_torch import MultiHorizonDataset
 
 BIN_MINUTES = 5
@@ -107,7 +108,6 @@ def load_reported(horizons) -> dict[str, list[float]]:
     root = os.path.dirname(SCRIPT_DIR)
     reported = {}
     paths = {
-        "stgnn": ("multihorizon_265_clipped_metrics.json", lambda d: d["test"]),
         "ridge": ("multihorizon_baselines_265_clipped.json", lambda d: d["methods"]["ridge"]),
         "persistence": ("multihorizon_baselines_265_clipped.json", lambda d: d["methods"]["persistence"]),
     }
@@ -123,7 +123,8 @@ def load_reported(horizons) -> dict[str, list[float]]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="real_processed_265")
-    parser.add_argument("--checkpoint", default="multihorizon_265_clipped.pt")
+    parser.add_argument("--checkpoint", default="model",
+                        help="a checkpoint file, a comma-separated list, or a directory of .pt files to average")
     parser.add_argument("--out-dir", default="artifacts")
     parser.add_argument("--window", type=int, default=48)
     parser.add_argument("--ridge", type=float, default=1e-3)
@@ -131,19 +132,25 @@ def main() -> None:
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model, features, a_out, a_in, horizons, meta = load_checkpoint(
-        args.checkpoint, args.data_dir, device=device)
-    bounds = split_bounds(meta, features.shape[1])
     demand = np.load(os.path.join(args.data_dir, "demand.npy"))
     times = np.load(os.path.join(args.data_dir, "times.npy"))
     zone_ids = np.load(os.path.join(args.data_dir, "zone_ids.npy"))
-    train_end = bounds[0][1]
-    mu, sigma = train_stats(demand, train_end)
 
-    print("[export] running ST-GNN on the test split")
-    stgnn_z, target_z, test_anchors = collect_predictions(
-        model, features, a_out, a_in, bounds, args.window, horizons,
-        batch_size=args.batch_size, device=device)
+    # Several checkpoints are averaged in pickup counts, giving one ensemble forecast.
+    member_z, member_counts = [], []
+    for path in resolve_checkpoints(args.checkpoint):
+        model, features, a_out, a_in, horizons, meta = load_checkpoint(path, args.data_dir, device=device)
+        bounds = split_bounds(meta, features.shape[1])
+        train_end = bounds[0][1]
+        mu, sigma = train_stats(demand, train_end)
+        print(f"[export] running {path} on the test split")
+        pred_z, target_z, test_anchors = collect_predictions(
+            model, features, a_out, a_in, bounds, args.window, horizons,
+            batch_size=args.batch_size, device=device)
+        member_z.append(pred_z)
+        member_counts.append(to_counts(pred_z, mu, sigma))
+    stgnn_z = np.mean(member_z, axis=0)
+    print(f"[export] ST-GNN forecast is the average of {len(member_counts)} checkpoint(s)")
     train_anchors = anchors_for(features, bounds[0], args.window, horizons)
 
     print("[export] fitting per-zone ridge baseline")
@@ -165,7 +172,7 @@ def main() -> None:
 
     actual = gather_targets(demand, test_anchors, horizons)
     predictions = {
-        "stgnn": to_counts(stgnn_z, mu, sigma),
+        "stgnn": np.mean(member_counts, axis=0).astype(np.float32),
         "ridge": to_counts(ridge_z, mu, sigma),
         "persistence": persistence_counts(demand, test_anchors, len(horizons)),
         "histavg": historical_average(demand, times, train_end, test_anchors, horizons),

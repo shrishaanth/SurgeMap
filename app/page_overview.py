@@ -38,11 +38,12 @@ def render() -> None:
     st.markdown("""
 - The test window is the **last 15% of the month**; models never saw it during fitting. Data comes from the
   official NYC TLC trip file.
-- The ST-GNN is the most accurate model here: 3 to 4% lower error than a calibrated gradient-boosted model and
-  20 to 31% lower than persistence. That lead came from how it is trained (shuffled batches, a loss weighted toward
-  busy zones) and from calibrating its output. Its graph structure contributes about 1% or less.
-- The most accurate forecaster is not the best repositioning policy: calibrated gradient boosting is slightly
-  ahead there, and the differences between good forecasters are about the size of the seed-to-seed spread.
+- The ST-GNN is the most accurate model here: 5 to 6% lower error than a calibrated gradient-boosted model and
+  21 to 32% lower than persistence. It is the average of five networks. That lead came from how they are trained
+  (shuffled batches, a loss suited to count data, yesterday's and last week's demand as inputs), not from the
+  graph structure, which contributes about 1% or less, nor from a bigger network.
+- Forecast accuracy and policy quality are only loosely linked: as repositioning policies the ST-GNN and calibrated
+  gradient boosting are indistinguishable, because the differences are smaller than the seed-to-seed spread.
 - Repositioning results come from a **simulation**: the trips are real but the fleet is synthetic, because
   public trip data has no vehicle positions. Riders are matched to the nearest idle vehicle within 15 minutes,
   and requests with none are lost. Compare policies with each other rather than reading absolute numbers as

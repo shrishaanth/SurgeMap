@@ -46,6 +46,15 @@ def histavg_for_bins(demand, times, train_end, bins, smooth: int = 3) -> np.ndar
     return total / np.maximum(count, 1.0)
 
 
+def load_weather(data_dir, n_bins: int) -> np.ndarray:
+    """The [T, 2] weather channels of a dataset, or zeros when it has none (constant inputs
+    carry no information, so the boosted model simply ignores them)."""
+    path = os.path.join(data_dir, "weather.npy")
+    if os.path.exists(path):
+        return np.load(path)
+    return np.zeros((n_bins, 2), dtype=np.float32)
+
+
 def zscore_params(demand, train_end):
     log_counts = np.log1p(demand[:, :train_end])
     return log_counts.mean(axis=1), np.maximum(log_counts.std(axis=1), 1e-6)
@@ -205,7 +214,7 @@ def main() -> None:
     demand = np.load(os.path.join(args.data_dir, "demand.npy")).astype(np.float64)
     times = np.load(os.path.join(args.data_dir, "times.npy"))
     features = np.load(os.path.join(args.data_dir, "features_clipped.npy"))
-    weather = np.load(os.path.join(args.data_dir, "weather.npy"))
+    weather = load_weather(args.data_dir, demand.shape[1])
     with open(os.path.join(args.data_dir, "metadata.json"), encoding="utf-8") as f:
         meta = json.load(f)
     train_end = meta["split"]["train"][1]

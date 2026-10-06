@@ -15,7 +15,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from accuracy_checks import gbm_predictions, histavg_for_bins, merge_into_artifacts, rmse_per_horizon
+import torch
+
+from accuracy_checks import (gbm_predictions, histavg_for_bins, load_weather, merge_into_artifacts,
+                             rmse_per_horizon)
 from diagnose_stgnn import correct
 from export_predictions import gather_targets, to_counts, train_stats
 from hotspot_eval import collect_predictions, load_checkpoint, resolve_checkpoints, split_bounds
@@ -37,16 +40,17 @@ def main() -> None:
     actual, test_anchors = p["actual"].astype(np.float64), p["anchors"]
     test_hist = p["histavg"].astype(np.float64)
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # Several checkpoints are averaged in pickup counts, the same way export_predictions.py does.
     val_members = []
     for path in resolve_checkpoints(args.checkpoint):
-        model, features, a_out, a_in, horizons, meta = load_checkpoint(path, args.data_dir)
+        model, features, a_out, a_in, horizons, meta = load_checkpoint(path, args.data_dir, device=device)
         bounds = split_bounds(meta, features.shape[1])
         train_end = bounds[0][1]
         mu, sigma = train_stats(demand, train_end)
         print(f"[calibrate] {path} on the validation split")
         val_z, _, val_anchors = collect_predictions(model, features, a_out, a_in, (bounds[0], bounds[1], bounds[1]),
-                                                    args.window, horizons)
+                                                    args.window, horizons, batch_size=64, device=device)
         val_members.append(to_counts(val_z, mu, sigma).astype(np.float64))
     val_stgnn = np.mean(val_members, axis=0)
     val_actual = gather_targets(demand, val_anchors, horizons)
@@ -56,7 +60,7 @@ def main() -> None:
         gbm_both = np.load(args.gbm_cache)["pred"].astype(np.float64)
     else:
         print("[calibrate] fitting the boosted model for validation and test")
-        weather = np.load(os.path.join(args.data_dir, "weather.npy"))
+        weather = load_weather(args.data_dir, demand.shape[1])
         train_anchors = np.arange(args.window, train_end - max(horizons) + 1)
         gbm_both = gbm_predictions(demand, times, weather, train_end, train_anchors,
                                    np.concatenate([val_anchors, test_anchors]), horizons).astype(np.float64)

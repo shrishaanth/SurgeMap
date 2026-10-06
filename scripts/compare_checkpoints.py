@@ -26,10 +26,20 @@ from hotspot_eval import collect_predictions, load_checkpoint, split_bounds
 
 
 def checkpoint_data_dir(path, default):
-    """The data directory a checkpoint was trained on, if it is present; otherwise the default."""
+    """The data directory a checkpoint was trained on.
+
+    A checkpoint only gives meaningful forecasts on the dataset it was trained on, because
+    the inputs are standardised with that dataset's statistics. If that directory is missing
+    and has a different name from the default, scoring it on the default would be wrong.
+    """
     saved = torch.load(path, map_location="cpu", weights_only=False).get("args") or {}
     candidate = saved.get("data_dir")
-    return candidate if candidate and os.path.isdir(candidate) else default
+    if not candidate or os.path.isdir(candidate):
+        return candidate or default
+    if os.path.basename(os.path.normpath(candidate)) == os.path.basename(os.path.normpath(default)):
+        return default
+    raise FileNotFoundError(f"{path} was trained on {candidate}, which is not present; rebuild that dataset "
+                            "with preprocess.py before scoring this checkpoint")
 
 
 def predict_counts(path, data_dir, window, shipped, with_validation):
@@ -43,11 +53,13 @@ def predict_counts(path, data_dir, window, shipped, with_validation):
     data_dir = checkpoint_data_dir(path, data_dir)
     demand = np.load(os.path.join(data_dir, "demand.npy")).astype(np.float64)
     times = np.load(os.path.join(data_dir, "times.npy"))
-    model, features, a_out, a_in, horizons, meta = load_checkpoint(path, data_dir)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model, features, a_out, a_in, horizons, meta = load_checkpoint(path, data_dir, device=device)
     bounds = split_bounds(meta, features.shape[1])
     train_end = bounds[0][1]
     mu, sigma = train_stats(demand, train_end)
-    pred_z, _, anchors = collect_predictions(model, features, a_out, a_in, bounds, window, horizons)
+    pred_z, _, anchors = collect_predictions(model, features, a_out, a_in, bounds, window, horizons,
+                                             batch_size=64, device=device)
     if not np.array_equal(times[anchors].astype("datetime64[s]"), shipped["anchor_times"].astype("datetime64[s]")):
         raise ValueError(f"{path}: test forecast times differ from the shipped forecasts")
     if not np.array_equal(np.load(os.path.join(data_dir, "zone_ids.npy")), shipped["zone_ids"]):
@@ -59,7 +71,8 @@ def predict_counts(path, data_dir, window, shipped, with_validation):
                                   for h in horizons], axis=-1)}
     if with_validation:
         val_z, _, val_anchors = collect_predictions(model, features, a_out, a_in,
-                                                    (bounds[0], bounds[1], bounds[1]), window, horizons)
+                                                    (bounds[0], bounds[1], bounds[1]), window, horizons,
+                                                    batch_size=64, device=device)
         out["val"] = to_counts(val_z, mu, sigma).astype(np.float64)
         out["val_actual"] = gather_targets(demand, val_anchors, horizons)
         out["val_hist"] = np.stack([histavg_for_bins(demand, times, train_end, val_anchors + h - 1).T

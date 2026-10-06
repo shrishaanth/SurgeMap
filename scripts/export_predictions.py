@@ -128,7 +128,7 @@ def main() -> None:
     parser.add_argument("--out-dir", default="artifacts")
     parser.add_argument("--window", type=int, default=48)
     parser.add_argument("--ridge", type=float, default=1e-3)
-    parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument("--batch-size", type=int, default=64)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

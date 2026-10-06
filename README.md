@@ -305,6 +305,16 @@ comparable across settings. `scripts/compare_checkpoints.py --calibrate` scores 
 test split, against the shipped models, with bootstrap intervals. Batch size 128 needs more than 15 GB of GPU
 memory; 32 fits. Training takes minutes on a GPU and a few hours on a CPU.
 
+### Training on more months
+
+`preprocess.py` accepts several trip files and a date range, can reuse the zones of an existing dataset, and takes
+explicit split times. This builds a longer training history while keeping the same zones, validation days and test
+window, so `compare_checkpoints.py` can score the result against the shipped forecasts:
+
+```powershell
+python scripts\preprocess.py --input data\yellow_tripdata_2023-12.parquet,data\yellow_tripdata_2024-01.parquet --out real_processed_2mo --start 2023-12-01 --end 2024-02-01 --zone-ids-from real_processed_265 --train-end "2024-01-22 16:45" --val-end "2024-01-27 08:20"
+```
+
 ---
 
 ## Project structure

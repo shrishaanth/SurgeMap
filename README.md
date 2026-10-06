@@ -85,16 +85,17 @@ RMSE in pickups per zone per 5-minute bin (lower is better), from `artifacts/for
 |-------|-------|--------|--------|--------|
 | **ST-GNN, calibrated** | **1.340** | **1.399** | **1.421** | **1.440** |
 | ST-GNN | 1.342 | 1.408 | 1.433 | 1.456 |
-| Gradient boosting, calibrated | 1.354 | 1.416 | 1.439 | 1.465 |
-| Gradient boosting | 1.359 | 1.423 | 1.447 | 1.483 |
+| Gradient boosting, calibrated | 1.358 | 1.423 | 1.447 | 1.471 |
+| Gradient boosting | 1.371 | 1.447 | 1.480 | 1.514 |
 | Ridge regression | 1.428 | 1.534 | 1.625 | 1.769 |
 | Historical average | 1.543 | 1.545 | 1.547 | 1.552 |
 | Persistence | 1.716 | 1.889 | 2.016 | 2.189 |
 
 "Calibrated" means two corrections fitted on the validation split only and applied identically to both models
 (`scripts/calibrate_forecasts.py`): a per-zone, per-horizon bias correction, then a per-horizon blend with the
-time-of-day average. Both models are trained on pickup counts with a Poisson loss and are nearly unbiased already,
-so calibration adds little.
+time-of-day average. Both models are trained on pickup counts with a Poisson loss and are nearly unbiased already.
+Calibration adds little to the ST-GNN and more to gradient boosting, which is not given the time-of-day average
+as a feature and so gains from the blend.
 
 95% block-bootstrap intervals on RMSE(other) minus RMSE(ST-GNN), positive meaning the ST-GNN is better
 (`scripts/accuracy_checks.py`):
@@ -104,15 +105,34 @@ so calibration adds little.
 | Persistence | +0.374 [+0.335, +0.409] | +0.481 [+0.435, +0.525] | +0.583 [+0.532, +0.637] | +0.733 [+0.648, +0.827] |
 | Historical average | +0.201 [+0.155, +0.252] | +0.137 [+0.106, +0.173] | +0.114 [+0.087, +0.144] | +0.097 [+0.073, +0.123] |
 | Ridge regression | +0.086 [+0.058, +0.116] | +0.127 [+0.092, +0.162] | +0.193 [+0.143, +0.242] | +0.313 [+0.232, +0.403] |
-| Gradient boosting | +0.016 [+0.009, +0.024] | +0.015 [+0.008, +0.022] | +0.014 [+0.005, +0.024] | +0.027 [+0.013, +0.041] |
+| Gradient boosting | +0.029 [+0.023, +0.034] | +0.040 [+0.030, +0.051] | +0.046 [+0.038, +0.056] | +0.058 [+0.046, +0.070] |
 
 - The ST-GNN is the most accurate model at every horizon, and every interval excludes zero.
-- **Its lead over gradient boosting is small: 1 to 2%**, both as trained and after calibration (+0.014 [+0.006,
-  +0.021], +0.017 [+0.011, +0.023], +0.018 [+0.012, +0.025], +0.024 [+0.016, +0.033]). On January alone that lead
-  looked like 5 to 6%; gradient boosting gained far more from the extra months than the ST-GNN did (see below).
+- **Its lead over gradient boosting is small: 2 to 4% as trained and 1.4 to 2.1% after calibration** (+0.018
+  [+0.013, +0.024], +0.024 [+0.016, +0.033], +0.026 [+0.019, +0.035], +0.031 [+0.024, +0.039]). The lead grows
+  with the horizon. On January alone the calibrated lead was 2 to 3%; gradient boosting gained somewhat more from
+  the extra months than the ST-GNN did (see below).
 - It beats the historical average by 7 to 13%, ridge regression by 6 to 19%, and persistence by 22 to 34%.
 - Pickups arrive at random, so even a perfectly known demand rate leaves an RMSE of about 1.16 here. The
   calibrated ST-GNN is 15% above that floor at 5 minutes and 24% at 60 (`scripts/headroom_analysis.py`).
+
+**Where the lead comes from** (`scripts/regime_analysis.py`, `results/regime_analysis.json`). Splitting the test
+window by how unusual citywide demand is, and by how busy the zone is, the calibrated ST-GNN's RMSE is lower than
+calibrated gradient boosting's by:
+
+| Part of the test window | 5 min | 15 min | 30 min | 60 min |
+|-------------------------|-------|--------|--------|--------|
+| Demand far below usual (lowest 5% of periods) | 3.9% | 6.0%* | 9.3%* | 6.1% |
+| Ordinary periods (middle 50%) | 0.9% | 1.3% | 1.3% | 1.5% |
+| Demand far above usual (top 5% of periods) | 2.6%* | 3.5%* | 3.4%* | 4.0% |
+| Busiest 10% of zones | 1.5% | 1.9% | 2.0% | 2.3% |
+| Quietest 70% of zones | 0.0% | 0.0% | 0.0% | 0.0% |
+
+\* the 95% interval includes zero; each 5% slice holds only about 66 forecast times, so these are uncertain.
+
+The ST-GNN is ahead in every slice, never behind. Its lead is two to four times larger when demand departs from
+the usual pattern than in ordinary periods, and it sits entirely in the busy zones: in the quietest 70% of zones,
+which see almost no pickups, the two models are identical.
 
 Two cautions. The recipe was chosen over several rounds of experiments by looking at this same test window, so
 the ST-GNN's margin is somewhat optimistic; the baselines were not tuned that way. Seed-to-seed variation for one
@@ -120,7 +140,7 @@ network is about 0.002 RMSE at 5 minutes and 0.003 at 60, smaller than the gap t
 much at short horizons.
 
 Hotspot ranking, as the mean number of the 5 busiest zones also among the 5 predicted, across 5 to 60 minutes:
-calibrated ST-GNN 3.31 to 3.20, calibrated gradient boosting 3.29 to 3.18, persistence 2.95 to 2.56. The top-3 hit
+calibrated ST-GNN 3.29 to 3.18, calibrated gradient boosting 3.27 to 3.12, persistence 2.93 to 2.55. The top-3 hit
 rate is 0.86 to 0.97 for every model, because the busiest zones barely change, so it does not separate them.
 
 ### Repositioning
@@ -135,8 +155,8 @@ about 0.1 minute.
 | Persistence | 57.0 / 9.25 | 40.2 / 7.07 | 27.3 / 5.40 | 12.6 / 3.41 |
 | Ridge | 58.1 / 9.36 | 40.9 / 7.12 | 28.4 / 5.52 | 14.1 / 3.60 |
 | Historical average | 57.5 / 9.30 | 39.7 / 6.96 | 26.5 / 5.23 | 12.2 / 3.24 |
-| Gradient boosting | 57.2 / 9.27 | 39.9 / 6.99 | 27.0 / 5.31 | 12.6 / 3.32 |
-| Gradient boosting, calibrated | 57.0 / 9.23 | 40.6 / 7.09 | 26.2 / 5.21 | 13.0 / 3.38 |
+| Gradient boosting | 57.9 / 9.35 | 40.6 / 7.10 | 26.3 / 5.23 | 12.5 / 3.32 |
+| Gradient boosting, calibrated | 57.3 / 9.28 | 40.3 / 7.06 | 26.7 / 5.28 | 12.6 / 3.33 |
 | ST-GNN | 57.3 / 9.27 | 40.3 / 7.05 | 27.0 / 5.31 | 12.8 / 3.37 |
 | **ST-GNN, calibrated** | 57.3 / 9.28 | 40.0 / 7.01 | 26.3 / 5.22 | 12.3 / 3.30 |
 | Oracle (true demand) | 56.8 / 9.17 | 40.3 / 6.98 | 25.7 / 5.05 | 12.2 / 3.18 |
@@ -147,8 +167,8 @@ about 0.1 minute.
   from 42.8% to 26 to 29% and mean wait from 7.6 to about 5.2 to 5.5 minutes. At 1,000 vehicles there is little to
   gain.
 - Comparing at equal driving cost along the `theta` sweep at 2,000 vehicles, the wait saved relative to a
-  persistence-driven policy is 0.32 minutes for the calibrated ST-GNN (88% of what perfect demand knowledge would
-  give), 0.31 for calibrated gradient boosting (87%), 0.29 for gradient boosting (81%) and 0.28 for the ST-GNN as
+  persistence-driven policy is 0.32 minutes for calibrated gradient boosting (90% of what perfect demand knowledge
+  would give), 0.32 for the calibrated ST-GNN (88%), 0.29 for gradient boosting (80%) and 0.28 for the ST-GNN as
   trained (79%). Comparing at equal `theta` is misleading because policies drive different amounts.
 - **A good forecast is enough; the best forecast adds nothing measurable.** The ST-GNN and gradient boosting are
   indistinguishable as policies, and a plain four-month time-of-day average does as well as either at
@@ -211,15 +231,15 @@ network trained on January unless stated:
 |-------|------------|-------|--------|--------|--------|
 | ST-GNN, calibrated, five seeds | January | 1.356 | 1.422 | 1.451 | 1.480 |
 | | four months | 1.340 | 1.399 | 1.421 | 1.440 |
-| Gradient boosting, calibrated | January | 1.422 | 1.506 | 1.539 | 1.577 |
-| | four months | 1.354 | 1.416 | 1.439 | 1.465 |
+| Gradient boosting, calibrated | January | 1.384 | 1.460 | 1.500 | 1.525 |
+| | four months | 1.358 | 1.423 | 1.447 | 1.471 |
 | Historical average | January | 1.701 | 1.702 | 1.703 | 1.706 |
 | | four months | 1.543 | 1.545 | 1.547 | 1.552 |
 
-The ST-GNN improved by 1 to 3% and gradient boosting by 5 to 7%, so a 5 to 6% lead on January became a 1 to 2%
-lead on four months. The January comparison flattered the network: with three weeks of history the baselines
-lacked the weekly pattern that the network's recipe had been tuned to supply. (Fitting gradient boosting on four
-months also needed an L2 term; without it the Poisson model predicted infinities for near-empty zones.)
+The ST-GNN improved by 1 to 3% and gradient boosting by 2 to 4%, so a 2 to 3% calibrated lead on January became a
+1.4 to 2.1% lead on four months. The historical average gained most, 9%, because three weeks of history are too
+few to estimate a weekly pattern. (The gradient-boosted model is fitted with an L2 term; without it the Poisson
+model predicted infinities for near-empty zones on four months.)
 
 **Does the graph help?** Less than the name suggests. In an early bundled retrain, removing the graph cost 2 to 4%
 at every horizon. In a better-trained recipe (shuffle + zone embedding + weighted loss, January) the cost was 0.3 to
@@ -229,8 +249,8 @@ unchanged (`results/spatial_check.json`). The ablation has not been repeated on 
 
 ### What this means
 
-On equal data, a carefully trained ST-GNN is the most accurate forecaster here, but only 1 to 2% ahead of a
-gradient-boosted model with simple features. Its accuracy came from how it is trained (shuffling, a loss that matches count data, the right
+On equal data, a carefully trained ST-GNN is the most accurate forecaster here, but only 2 to 4% ahead of a
+gradient-boosted model with simple features, and 1.4 to 2.1% once both are calibrated. Its accuracy came from how it is trained (shuffling, a loss that matches count data, the right
 extra inputs, more history, averaging seeds), not from its graph structure, whose measured contribution is about
 1% or less, nor from making it bigger. For the repositioning policy the choice of forecaster does not matter once
 it is unbiased and knows the daily pattern: a four-month time-of-day average performs as well as either model. The
@@ -350,6 +370,7 @@ SurgeMap/
 │   ├── hotspot_eval.py          Top-k hotspot evaluation of a checkpoint
 │   ├── export_predictions.py    Count-space forecasts for the simulator and app
 │   ├── accuracy_checks.py       Extra baselines, bootstrap intervals, merge into the forecasts
+│   ├── regime_analysis.py       Accuracy by how unusual the period and how busy the zone is
 │   ├── calibrate_forecasts.py   Validation-fitted bias correction and blend for both models
 │   ├── diagnose_stgnn.py        Where the ST-GNN's error comes from
 │   ├── compare_checkpoints.py   Scores checkpoints against the shipped models, optionally calibrated

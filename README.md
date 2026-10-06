@@ -65,7 +65,7 @@ loss. The shipped forecast is the average of five such networks trained with dif
 | Persistence | the last observed bin |
 | Historical average | mean training demand for the same zone, weekday and time of day |
 | Ridge regression | one ridge model per zone on the flattened 48-bin window |
-| Gradient boosting | one scikit-learn `HistGradientBoostingRegressor` per horizon across all zones, Poisson loss; lags, same time yesterday and last week, historical average, calendar, weather, citywide demand |
+| Gradient boosting | one scikit-learn `HistGradientBoostingRegressor` per horizon across all zones, Poisson loss with L2 regularisation; recent lags, same time yesterday and last week, calendar, weather, citywide demand |
 
 ---
 

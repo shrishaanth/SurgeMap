@@ -92,7 +92,8 @@ def ridge_with_histavg(features, demand, times, train_end, train_anchors, test_a
     return out
 
 
-def gbm_features(demand, times, weather, train_end, anchors, h, zone_level, spatial=None) -> np.ndarray:
+def gbm_features(demand, times, weather, train_end, anchors, h, zone_level, spatial=None,
+                 use_histavg: bool = False) -> np.ndarray:
     """Feature matrix with one row per (anchor, zone), for target bin anchor + h - 1."""
     z, n = demand.shape[0], len(anchors)
     target = anchors + h - 1
@@ -110,7 +111,8 @@ def gbm_features(demand, times, weather, train_end, anchors, h, zone_level, spat
         idx = target - lag
         vals = np.where(idx[None, :] >= 0, log_d[:, np.maximum(idx, 0)], np.nan)
         cols.append(per_zone(vals))
-    cols.append(per_zone(np.log1p(histavg_for_bins(demand, times, train_end, target))))
+    if use_histavg:                           # the time-of-day average of the target bin; off by default
+        cols.append(per_zone(np.log1p(histavg_for_bins(demand, times, train_end, target))))
     dow, tod = calendar_keys(times)
     angle = 2 * np.pi * tod[target] / BINS_PER_DAY
     for series in (np.sin(angle), np.cos(angle), dow[target].astype(float), (dow[target] >= 5).astype(float)):
@@ -128,14 +130,15 @@ def gbm_features(demand, times, weather, train_end, anchors, h, zone_level, spat
 
 
 def gbm_predictions(demand, times, weather, train_end, train_anchors, test_anchors, horizons,
-                    stride: int = 3, max_iter: int = 200, spatial=None) -> np.ndarray:
+                    stride: int = 3, max_iter: int = 200, spatial=None,
+                    use_histavg: bool = False) -> np.ndarray:
     from sklearn.ensemble import HistGradientBoostingRegressor
     z = demand.shape[0]
     zone_level = np.log1p(demand[:, :train_end]).mean(axis=1)
     fit_anchors = train_anchors[::stride]
     out = np.empty((len(test_anchors), z, len(horizons)), dtype=np.float32)
     for j, h in enumerate(horizons):
-        x_tr = gbm_features(demand, times, weather, train_end, fit_anchors, h, zone_level, spatial)
+        x_tr = gbm_features(demand, times, weather, train_end, fit_anchors, h, zone_level, spatial, use_histavg)
         y_tr = demand[:, fit_anchors + h - 1].T.reshape(-1)
         # The L2 term matters for stability, not just accuracy. With a Poisson loss the score of
         # a zone that is almost always empty drifts very low, its curvature goes to zero, and a
@@ -145,7 +148,7 @@ def gbm_predictions(demand, times, weather, train_end, train_anchors, test_ancho
                                               max_leaf_nodes=63, min_samples_leaf=50, l2_regularization=1.0,
                                               early_stopping=False, random_state=7)
         model.fit(x_tr, y_tr)
-        x_te = gbm_features(demand, times, weather, train_end, test_anchors, h, zone_level, spatial)
+        x_te = gbm_features(demand, times, weather, train_end, test_anchors, h, zone_level, spatial, use_histavg)
         predicted = model.predict(x_te)
         if not np.isfinite(predicted).all() or predicted.max() > 100.0 * max(float(y_tr.max()), 1.0):
             raise FloatingPointError(f"boosted model produced unbounded predictions at horizon {h} "

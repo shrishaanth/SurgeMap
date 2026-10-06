@@ -8,7 +8,7 @@ import streamlit as st
 import data
 from logic import moves_to_arcs
 
-POLICIES = ("stgnn_cal", "gbm_cal", "stgnn", "gbm", "persistence", "oracle", "histavg", "ridge", "ridge_hist")
+POLICIES = ("stgnn_cal", "gbm_cal", "stgnn", "gbm", "persistence", "oracle", "histavg", "ridge")
 WARMUP = 36
 
 

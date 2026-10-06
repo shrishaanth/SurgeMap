@@ -213,7 +213,7 @@ def main() -> None:
     parser.add_argument("--out", default="results/accuracy_checks.json")
     parser.add_argument("--window", type=int, default=48)
     parser.add_argument("--merge", action="store_true", help="add the extra models to predictions.npz and forecast_metrics.json")
-    parser.add_argument("--extras", default="ridge_hist,gbm", help="comma-separated: ridge_hist, gbm, gbm_spatial")
+    parser.add_argument("--extras", default="gbm", help="comma-separated: gbm, gbm_spatial, ridge_hist")
     args = parser.parse_args()
 
     p = np.load(args.predictions)

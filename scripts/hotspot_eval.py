@@ -51,6 +51,17 @@ def split_bounds(meta: dict, total: int) -> tuple[tuple[int, int], ...]:
     return _split_bounds(meta, total)
 
 
+def resolve_checkpoints(spec: str) -> list[str]:
+    """Checkpoint files named by a path, a comma-separated list, or a directory of .pt files."""
+    if os.path.isdir(spec):
+        paths = sorted(os.path.join(spec, name) for name in os.listdir(spec) if name.endswith(".pt"))
+    else:
+        paths = [part.strip() for part in spec.split(",") if part.strip()]
+    if not paths:
+        raise FileNotFoundError(f"no checkpoints found for: {spec}")
+    return paths
+
+
 def resolve_data_dir(explicit: str | None, checkpoint_args: dict | None) -> str:
     if explicit:
         return explicit

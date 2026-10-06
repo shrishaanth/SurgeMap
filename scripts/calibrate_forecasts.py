@@ -18,31 +18,37 @@ if SCRIPT_DIR not in sys.path:
 from accuracy_checks import gbm_predictions, histavg_for_bins, merge_into_artifacts, rmse_per_horizon
 from diagnose_stgnn import correct
 from export_predictions import gather_targets, to_counts, train_stats
-from hotspot_eval import collect_predictions, load_checkpoint, split_bounds
+from hotspot_eval import collect_predictions, load_checkpoint, resolve_checkpoints, split_bounds
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="real_processed_265")
-    parser.add_argument("--checkpoint", default="multihorizon_265_clipped.pt")
+    parser.add_argument("--checkpoint", default="model",
+                        help="a checkpoint file, a comma-separated list, or a directory of .pt files to average")
     parser.add_argument("--predictions", default="artifacts/predictions.npz")
     parser.add_argument("--gbm-cache", default="results/gbm_val_test.npz")
     parser.add_argument("--window", type=int, default=48)
     args = parser.parse_args()
 
-    model, features, a_out, a_in, horizons, meta = load_checkpoint(args.checkpoint, args.data_dir)
-    bounds = split_bounds(meta, features.shape[1])
-    train_end = bounds[0][1]
     demand = np.load(os.path.join(args.data_dir, "demand.npy")).astype(np.float64)
     times = np.load(os.path.join(args.data_dir, "times.npy"))
-    mu, sigma = train_stats(demand, train_end)
     p = np.load(args.predictions)
     actual, test_anchors = p["actual"].astype(np.float64), p["anchors"]
     test_hist = p["histavg"].astype(np.float64)
 
-    print("[calibrate] ST-GNN on the validation split")
-    val_z, _, val_anchors = collect_predictions(model, features, a_out, a_in, (bounds[0], bounds[1], bounds[1]),
-                                                args.window, horizons)
+    # Several checkpoints are averaged in pickup counts, the same way export_predictions.py does.
+    val_members = []
+    for path in resolve_checkpoints(args.checkpoint):
+        model, features, a_out, a_in, horizons, meta = load_checkpoint(path, args.data_dir)
+        bounds = split_bounds(meta, features.shape[1])
+        train_end = bounds[0][1]
+        mu, sigma = train_stats(demand, train_end)
+        print(f"[calibrate] {path} on the validation split")
+        val_z, _, val_anchors = collect_predictions(model, features, a_out, a_in, (bounds[0], bounds[1], bounds[1]),
+                                                    args.window, horizons)
+        val_members.append(to_counts(val_z, mu, sigma).astype(np.float64))
+    val_stgnn = np.mean(val_members, axis=0)
     val_actual = gather_targets(demand, val_anchors, horizons)
     val_hist = np.stack([histavg_for_bins(demand, times, train_end, val_anchors + h - 1).T for h in horizons], axis=-1)
 
@@ -57,7 +63,7 @@ def main() -> None:
         os.makedirs(os.path.dirname(os.path.abspath(args.gbm_cache)), exist_ok=True)
         np.savez_compressed(args.gbm_cache, pred=gbm_both)
 
-    sources = {"stgnn_cal": (to_counts(val_z, mu, sigma).astype(np.float64), p["stgnn"].astype(np.float64)),
+    sources = {"stgnn_cal": (val_stgnn, p["stgnn"].astype(np.float64)),
                "gbm_cal": (gbm_both[:len(val_anchors)], gbm_both[len(val_anchors):])}
     calibrated = {}
     for name, (val_pred, test_pred) in sources.items():

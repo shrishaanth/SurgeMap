@@ -46,3 +46,18 @@ def test_ranking_metrics_on_a_hand_computed_case():
     assert row["overlap"] == 1.0
     assert row["hit_rate"] == 1.0
     assert row["precision"] == 0.5
+
+
+def test_resolve_checkpoints_accepts_a_file_a_list_and_a_directory(tmp_path):
+    import pytest
+    from hotspot_eval import resolve_checkpoints
+    for name in ("b.pt", "a.pt", "notes.json"):
+        (tmp_path / name).write_text("x")
+    found = resolve_checkpoints(str(tmp_path))
+    assert [p.replace("\\", "/").split("/")[-1] for p in found] == ["a.pt", "b.pt"]
+    assert resolve_checkpoints("one.pt") == ["one.pt"]
+    assert resolve_checkpoints("one.pt, two.pt") == ["one.pt", "two.pt"]
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(FileNotFoundError):
+        resolve_checkpoints(str(empty))

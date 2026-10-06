@@ -1,10 +1,11 @@
 import numpy as np
+import pandas as pd
 import pytest
 import torch
 from torch.utils.data import DataLoader
 
 from hotspot_eval import collect_predictions, load_checkpoint, split_bounds
-from stgnn_arch import GraphWaveNet, HiddenGraphMix, adaptive_adjacency
+from stgnn_arch import GraphWaveNet, HiddenGraphMix, adaptive_adjacency, calendar_slots
 from test_capacity_options import F, Z, make_data_dir
 from train_multihorizon_torch import (HORIZONS, MultiHorizonDataset, MultiHorizonSTGNN, build_model,
                                       parse_dilations, prepare_inputs, run_epoch)
@@ -89,7 +90,7 @@ def test_parse_dilations():
         build_model({"arch": "transformer"}, F, Z)
 
 
-@pytest.mark.parametrize("config", [SMALL, {"arch": "gru", "hidden": 8, "mix_hidden": True, "adaptive_dim": 4},
+@pytest.mark.parametrize("config", [SMALL, {**SMALL, "identity_dim": 4}, {"arch": "gru", "hidden": 8, "mix_hidden": True, "adaptive_dim": 4},
                                     {"arch": "gru", "hidden": 8, "mix_hidden": True, "adaptive_dim": 0}])
 def test_new_architectures_train_and_reload_through_the_checkpoint_loader(tmp_path, config):
     make_data_dir(tmp_path)
@@ -119,3 +120,28 @@ def test_new_architectures_train_and_reload_through_the_checkpoint_loader(tmp_pa
         direct = model(x[None], a, a, lagged=lag[None])[0].numpy()
     np.testing.assert_allclose(pred[0], direct, rtol=1e-4, atol=1e-5)
     assert pred.shape == target.shape and len(anchors) == len(pred)
+
+
+def test_calendar_slots_recover_time_of_day_and_weekday_from_the_features():
+    times = pd.date_range('2024-01-05 22:00', periods=600, freq='5min')
+    minute = (times.hour * 60 + times.minute).to_numpy()
+    day = times.dayofweek.to_numpy()
+    x = torch.zeros(1, 2, 600, F)
+    x[0, :, :, 1] = torch.tensor(np.sin(2 * np.pi * minute / 1440), dtype=torch.float32)
+    x[0, :, :, 2] = torch.tensor(np.cos(2 * np.pi * minute / 1440), dtype=torch.float32)
+    x[0, :, :, 3] = torch.tensor(np.sin(2 * np.pi * day / 7), dtype=torch.float32)
+    x[0, :, :, 4] = torch.tensor(np.cos(2 * np.pi * day / 7), dtype=torch.float32)
+    slot, weekday = calendar_slots(x)
+    np.testing.assert_array_equal(slot[0].numpy(), minute // 5)
+    np.testing.assert_array_equal(weekday[0].numpy(), day)
+
+
+def test_identity_embeddings_make_identical_windows_in_different_zones_differ():
+    torch.manual_seed(0)
+    x = torch.randn(1, 1, WINDOW, F).expand(1, Z, WINDOW, F).contiguous()
+    plain = build_model({**SMALL, 'adaptive_dim': 0, 'dropout': 0.0}, F, Z).eval()
+    out = plain(x, flow(Z), flow(Z))
+    torch.testing.assert_close(out[:, 0], out[:, 1])
+    with_identity = build_model({**SMALL, 'adaptive_dim': 0, 'dropout': 0.0, 'identity_dim': 4}, F, Z).eval()
+    out = with_identity(x, flow(Z), flow(Z))
+    assert not torch.allclose(out[:, 0], out[:, 1])

@@ -147,6 +147,8 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
         a_out, a_in = np.zeros_like(a_out), np.zeros_like(a_in)
     first_layer = "input_proj.weight" if arch == "gwnet" else "spatial.w_out.weight"
     n_features = state[first_layer].shape[1] if first_layer in state else features.shape[2]
+    if "zone_identity.weight" in state:          # the identity embeddings widen the first layer
+        n_features -= 3 * state["zone_identity.weight"].shape[1]
     if features.shape[2] < n_features:
         raise ValueError(f"checkpoint expects {n_features} feature channels but "
                          f"{features_path} has {features.shape[2]}")
@@ -164,6 +166,7 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
     if arch == "gwnet":
         config["channels"] = state["input_proj.weight"].shape[0]
         config["end_channels"] = state["end.weight"].shape[0]
+        config["identity_dim"] = state["zone_identity.weight"].shape[1] if "zone_identity.weight" in state else 0
     model = build_model(config, features.shape[2], features.shape[0], horizons,
                         lag_dim=0 if lagged is None else lagged.shape[-1]).to(device)
     try:

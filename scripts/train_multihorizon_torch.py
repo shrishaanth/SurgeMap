@@ -212,7 +212,8 @@ def build_model(config: dict, n_features: int, n_zones: int, horizons=HORIZONS, 
                             dilations=parse_dilations(config.get("dilations") or "1,2,4,8,16,1,2,4"),
                             gcn_order=int(config.get("gcn_order") or 2), adaptive_dim=adaptive_dim,
                             dropout=float(config.get("dropout") or 0.0), lag_dim=lag_dim,
-                            end_channels=int(config.get("end_channels") or 128))
+                            end_channels=int(config.get("end_channels") or 128),
+                            identity_dim=int(config.get("identity_dim") or 0))
     if arch != "gru":
         raise ValueError(f"unknown architecture {arch!r}")
     mix = bool(config.get("mix_hidden"))
@@ -339,6 +340,8 @@ def main():
     parser.add_argument("--dilations", default="1,2,4,8,16,1,2,4", help="gwnet: one dilation per layer")
     parser.add_argument("--gcn-order", type=int, default=2, help="gwnet: hops per graph convolution")
     parser.add_argument("--dropout", type=float, default=0.1, help="gwnet: dropout after each graph conv")
+    parser.add_argument("--identity-dim", type=int, default=0,
+                        help="gwnet: size of the learned zone, time-of-day and weekday embeddings (0 = off)")
     parser.add_argument("--amp", action="store_true", help="mixed precision on the GPU (faster, less memory)")
     args = parser.parse_args()
     seed_all(args.seed)

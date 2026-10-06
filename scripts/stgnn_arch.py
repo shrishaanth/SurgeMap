@@ -14,13 +14,28 @@ the checkpoint loader and every downstream script work with either.
 """
 from __future__ import annotations
 
+import math
+
 import torch
 from torch import nn
+
+SLOTS_PER_DAY = 288      # 5-minute bins
 
 
 def adaptive_adjacency(node_a: torch.Tensor, node_b: torch.Tensor) -> torch.Tensor:
     """A learned, row-normalised zone-to-zone weight matrix from two sets of node embeddings."""
     return torch.softmax(torch.relu(node_a @ node_b.T), dim=1)
+
+
+def calendar_slots(x: torch.Tensor) -> tuple:
+    """Time-of-day slot (0..287) and weekday (0..6) of every step of a window, read back from the
+    calendar channels 1-4 of the features (hour sin/cos, weekday sin/cos). x is [B, Z, W, F];
+    the calendar is the same for every zone, so zone 0 is used. Returns two [B, W] tensors."""
+    cal = x[:, 0, :, 1:5]
+    turn = 2 * math.pi
+    slot = torch.round(torch.atan2(cal[..., 0], cal[..., 1]) / turn * SLOTS_PER_DAY).long() % SLOTS_PER_DAY
+    weekday = torch.round(torch.atan2(cal[..., 2], cal[..., 3]) / turn * 7).long() % 7
+    return slot, weekday
 
 
 class HiddenGraphMix(nn.Module):
@@ -75,11 +90,17 @@ class GraphWaveNet(nn.Module):
     sum of the dilations. Every layer contributes its most recent time step to a skip sum,
     which is projected to a per-zone vector and read by one linear head per horizon. As in
     MultiHorizonSTGNN, a prior is added to the output and lagged inputs go to the heads.
+
+    With identity_dim > 0 the input of every zone at every step is extended with three learned
+    embeddings: one per zone, one per time-of-day slot and one per weekday (the spatial and
+    temporal identities of Shao et al., 2022), so the network can tell apart windows that look
+    the same but belong to different places or times.
     """
 
     def __init__(self, n_features: int, n_zones: int, horizons, channels: int = 32,
                  dilations=(1, 2, 4, 8, 16, 1, 2, 4), gcn_order: int = 2, adaptive_dim: int = 10,
-                 dropout: float = 0.1, lag_dim: int = 0, end_channels: int = 128):
+                 dropout: float = 0.1, lag_dim: int = 0, end_channels: int = 128,
+                 identity_dim: int = 0):
         super().__init__()
         self.horizons = tuple(int(h) for h in horizons)
         self.dilations = tuple(int(d) for d in dilations)
@@ -89,7 +110,12 @@ class GraphWaveNet(nn.Module):
             self.node_a = nn.Parameter(torch.randn(n_zones, adaptive_dim) * 0.1)
             self.node_b = nn.Parameter(torch.randn(n_zones, adaptive_dim) * 0.1)
         n_supports = 2 + int(self.adaptive)
-        self.input_proj = nn.Conv2d(n_features, channels, kernel_size=1)
+        self.identity_dim = int(identity_dim)
+        if self.identity_dim:
+            self.zone_identity = nn.Embedding(n_zones, self.identity_dim)
+            self.slot_identity = nn.Embedding(SLOTS_PER_DAY, self.identity_dim)
+            self.weekday_identity = nn.Embedding(7, self.identity_dim)
+        self.input_proj = nn.Conv2d(n_features + 3 * self.identity_dim, channels, kernel_size=1)
         conv = lambda d: nn.Conv2d(channels, channels, kernel_size=(1, 2), dilation=(1, d))
         self.filters = nn.ModuleList(conv(d) for d in self.dilations)
         self.gates = nn.ModuleList(conv(d) for d in self.dilations)
@@ -111,6 +137,12 @@ class GraphWaveNet(nn.Module):
         supports = [a_out, a_in]
         if self.adaptive:
             supports.append(adaptive_adjacency(self.node_a, self.node_b))
+        if self.identity_dim:
+            b, z, w, _ = x.shape
+            slot, weekday = calendar_slots(x)
+            x = torch.cat([x, self.zone_identity.weight[None, :, None, :].expand(b, z, w, -1),
+                           self.slot_identity(slot)[:, None].expand(b, z, w, -1),
+                           self.weekday_identity(weekday)[:, None].expand(b, z, w, -1)], dim=-1)
         h = self.input_proj(x.permute(0, 3, 1, 2))                 # [B, C, Z, W]
         skip = 0.0
         for i in range(len(self.dilations)):

@@ -18,7 +18,7 @@ from simulator import load_world, run_episode
 
 METRICS = ("unmet_rate", "mean_wait_served", "mean_wait_penalized", "empty_minutes",
            "reposition_minutes", "moved")
-FORECAST_POLICIES = ("persistence", "histavg", "ridge", "ridge_hist", "gbm", "gbm_cal", "stgnn", "stgnn_cal",
+FORECAST_POLICIES = ("persistence", "histavg", "ridge", "gbm", "gbm_cal", "stgnn", "stgnn_cal",
                      "oracle")
 
 _STATE = {}

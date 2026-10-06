@@ -10,10 +10,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 LABELS = {"none": "dispatch only", "persistence": "persistence", "histavg": "historical average",
-          "ridge": "ridge", "ridge_hist": "ridge + time-of-day average",
+          "ridge": "ridge",
           "gbm": "gradient boosting", "gbm_cal": "gradient boosting, calibrated",
           "stgnn": "ST-GNN", "stgnn_cal": "ST-GNN, calibrated", "oracle": "oracle (true demand)"}
-COLORS = {"none": "#888888", "persistence": "#1f77b4", "histavg": "#9467bd", "ridge": "#2ca02c", "ridge_hist": "#8c564b", "gbm": "#ff7f0e", "gbm_cal": "#bc6c00", "stgnn_cal": "#7f0000",
+COLORS = {"none": "#888888", "persistence": "#1f77b4", "histavg": "#9467bd", "ridge": "#2ca02c", "gbm": "#ff7f0e", "gbm_cal": "#bc6c00", "stgnn_cal": "#7f0000",
           "stgnn": "#d62728", "oracle": "#000000"}
 
 

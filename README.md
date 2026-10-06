@@ -65,7 +65,6 @@ loss. The shipped forecast is the average of five such networks trained with dif
 | Persistence | the last observed bin |
 | Historical average | mean training demand for the same zone, weekday and time of day |
 | Ridge regression | one ridge model per zone on the flattened 48-bin window |
-| Ridge + time-of-day average | the same ridge model with the historical average of each target bin as an extra input |
 | Gradient boosting | one scikit-learn `HistGradientBoostingRegressor` per horizon across all zones, Poisson loss; lags, same time yesterday and last week, historical average, calendar, weather, citywide demand |
 
 ---
@@ -88,7 +87,6 @@ RMSE in pickups per zone per 5-minute bin (lower is better), from `artifacts/for
 | ST-GNN | 1.342 | 1.408 | 1.433 | 1.456 |
 | Gradient boosting, calibrated | 1.354 | 1.416 | 1.439 | 1.465 |
 | Gradient boosting | 1.359 | 1.423 | 1.447 | 1.483 |
-| Ridge + time-of-day average | 1.385 | 1.450 | 1.469 | 1.497 |
 | Ridge regression | 1.428 | 1.534 | 1.625 | 1.769 |
 | Historical average | 1.543 | 1.545 | 1.547 | 1.552 |
 | Persistence | 1.716 | 1.889 | 2.016 | 2.189 |
@@ -106,15 +104,13 @@ so calibration adds little.
 | Persistence | +0.374 [+0.335, +0.409] | +0.481 [+0.435, +0.525] | +0.583 [+0.532, +0.637] | +0.733 [+0.648, +0.827] |
 | Historical average | +0.201 [+0.155, +0.252] | +0.137 [+0.106, +0.173] | +0.114 [+0.087, +0.144] | +0.097 [+0.073, +0.123] |
 | Ridge regression | +0.086 [+0.058, +0.116] | +0.127 [+0.092, +0.162] | +0.193 [+0.143, +0.242] | +0.313 [+0.232, +0.403] |
-| Ridge + time-of-day average | +0.043 [+0.025, +0.063] | +0.042 [+0.027, +0.058] | +0.036 [+0.019, +0.054] | +0.041 [+0.020, +0.061] |
 | Gradient boosting | +0.016 [+0.009, +0.024] | +0.015 [+0.008, +0.022] | +0.014 [+0.005, +0.024] | +0.027 [+0.013, +0.041] |
 
 - The ST-GNN is the most accurate model at every horizon, and every interval excludes zero.
 - **Its lead over gradient boosting is small: 1 to 2%**, both as trained and after calibration (+0.014 [+0.006,
   +0.021], +0.017 [+0.011, +0.023], +0.018 [+0.012, +0.025], +0.024 [+0.016, +0.033]). On January alone that lead
   looked like 5 to 6%; gradient boosting gained far more from the extra months than the ST-GNN did (see below).
-- It beats ridge with the time-of-day average by about 3%, the historical average by 7 to 13%, and persistence by
-  22 to 34%.
+- It beats the historical average by 7 to 13%, ridge regression by 6 to 19%, and persistence by 22 to 34%.
 - Pickups arrive at random, so even a perfectly known demand rate leaves an RMSE of about 1.16 here. The
   calibrated ST-GNN is 15% above that floor at 5 minutes and 24% at 60 (`scripts/headroom_analysis.py`).
 
@@ -138,7 +134,6 @@ about 0.1 minute.
 | Dispatch only | 61.5 / 9.98 | 49.7 / 8.49 | 42.8 / 7.63 | 33.7 / 6.50 |
 | Persistence | 57.0 / 9.25 | 40.2 / 7.07 | 27.3 / 5.40 | 12.6 / 3.41 |
 | Ridge | 58.1 / 9.36 | 40.9 / 7.12 | 28.4 / 5.52 | 14.1 / 3.60 |
-| Ridge + time-of-day average | 57.6 / 9.30 | 41.3 / 7.18 | 28.5 / 5.51 | 14.2 / 3.61 |
 | Historical average | 57.5 / 9.30 | 39.7 / 6.96 | 26.5 / 5.23 | 12.2 / 3.24 |
 | Gradient boosting | 57.2 / 9.27 | 39.9 / 6.99 | 27.0 / 5.31 | 12.6 / 3.32 |
 | Gradient boosting, calibrated | 57.0 / 9.23 | 40.6 / 7.09 | 26.2 / 5.21 | 13.0 / 3.38 |
@@ -218,8 +213,6 @@ network trained on January unless stated:
 | | four months | 1.340 | 1.399 | 1.421 | 1.440 |
 | Gradient boosting, calibrated | January | 1.422 | 1.506 | 1.539 | 1.577 |
 | | four months | 1.354 | 1.416 | 1.439 | 1.465 |
-| Ridge + time-of-day average | January | 1.476 | 1.575 | 1.602 | 1.661 |
-| | four months | 1.385 | 1.450 | 1.469 | 1.497 |
 | Historical average | January | 1.701 | 1.702 | 1.703 | 1.706 |
 | | four months | 1.543 | 1.545 | 1.547 | 1.552 |
 
@@ -237,8 +230,7 @@ unchanged (`results/spatial_check.json`). The ablation has not been repeated on 
 ### What this means
 
 On equal data, a carefully trained ST-GNN is the most accurate forecaster here, but only 1 to 2% ahead of a
-gradient-boosted model with simple features, and about 3% ahead of a ridge regression that is given the
-time-of-day average. Its accuracy came from how it is trained (shuffling, a loss that matches count data, the right
+gradient-boosted model with simple features. Its accuracy came from how it is trained (shuffling, a loss that matches count data, the right
 extra inputs, more history, averaging seeds), not from its graph structure, whose measured contribution is about
 1% or less, nor from making it bigger. For the repositioning policy the choice of forecaster does not matter once
 it is unbiased and knows the daily pattern: a four-month time-of-day average performs as well as either model. The
@@ -260,8 +252,8 @@ between zones, given the forecast demand over the next 15 minutes. It minimises
 `theta × vehicle driving minutes + rider wait minutes + 15 × unserved requests`. Any forecast can drive it;
 `theta` sets the trade-off between fleet driving and rider waiting.
 
-**Evaluation** (`scripts/run_evaluation.py`). Policies driven by persistence, historical average, ridge, ridge
-with the time-of-day average, gradient boosting, the ST-GNN (both as trained and calibrated) and the true demand ("oracle", an upper bound) are compared with dispatch alone, over several fleet sizes
+**Evaluation** (`scripts/run_evaluation.py`). Policies driven by persistence, historical average, ridge,
+gradient boosting, the ST-GNN (both as trained and calibrated) and the true demand ("oracle", an upper bound) are compared with dispatch alone, over several fleet sizes
 and seeds, with a `theta` sweep to trace each policy's wait vs driving curve. Policies are also compared with
 persistence at equal driving cost, so a policy that simply moves fewer vehicles is not mistaken for a worse one.
 

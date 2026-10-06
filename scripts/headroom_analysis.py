@@ -103,7 +103,7 @@ def main() -> None:
     p = np.load(args.predictions)
     horizons = [int(h) for h in p["horizons"]]
     actual = p["actual"].astype(np.float64)
-    m = {k: p[k].astype(np.float64) for k in ("stgnn", "stgnn_cal", "gbm", "gbm_cal", "ridge_hist", "histavg", "persistence")}
+    m = {k: p[k].astype(np.float64) for k in ("stgnn", "stgnn_cal", "gbm", "gbm_cal", "ridge", "histavg", "persistence")}
     labels = [f"{h * 5}m" for h in horizons]
     out = {"horizons": horizons}
 
@@ -168,7 +168,7 @@ def main() -> None:
     ar, phis = online_residual_correction(m["stgnn_cal"], actual, horizons)
     out["residual_phi"] = phis
     show("calibrated ST-GNN + last-error correction", ar)
-    experts = {"stgnn_cal": m["stgnn_cal"], "gbm_cal": m["gbm_cal"], "ridge_hist": m["ridge_hist"],
+    experts = {"stgnn_cal": m["stgnn_cal"], "gbm_cal": m["gbm_cal"], "ridge": m["ridge"],
                "histavg": m["histavg"], "persistence": m["persistence"]}
     hedged, weights = hedge(experts, actual, horizons)
     out["hedge_weights"] = weights

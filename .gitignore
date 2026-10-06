@@ -20,3 +20,7 @@ __pycache__/
 /results/*.preds.npz
 /results/*.npz
 /results/pred_cache/
+
+# Built by make preprocess-4mo / make export; too large to track
+/real_processed_4mo/
+/artifacts_4mo/

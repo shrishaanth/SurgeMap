@@ -11,7 +11,7 @@ def render() -> None:
     st.write(
         "SurgeMap forecasts how many taxi pickups each of New York's taxi zones will see in the next 5 to 60 "
         "minutes, and tests whether using those forecasts to pre-position idle vehicles reduces how long riders "
-        "wait. The forecaster is a directed-graph spatio-temporal neural network (ST-GNN) trained on January 2024 "
+        "wait. The forecaster is a directed-graph spatio-temporal neural network (ST-GNN) trained on four months of "
         "NYC yellow-taxi trips.")
 
     metrics, d = data.forecast_metrics(), data.predictions()
@@ -38,12 +38,14 @@ def render() -> None:
     st.markdown("""
 - The test window is the **last 15% of the month**; models never saw it during fitting. Data comes from the
   official NYC TLC trip file.
-- The ST-GNN is the most accurate model here: 5 to 6% lower error than a calibrated gradient-boosted model and
-  21 to 32% lower than persistence. It is the average of five networks. That lead came from how they are trained
-  (shuffled batches, a loss suited to count data, yesterday's and last week's demand as inputs), not from the
-  graph structure, which contributes about 1% or less, nor from a bigger network.
-- Forecast accuracy and policy quality are only loosely linked: as repositioning policies the ST-GNN and calibrated
-  gradient boosting are indistinguishable, because the differences are smaller than the seed-to-seed spread.
+- Every fitted model here is trained on the same four months (October 2023 to January 2024). The ST-GNN, an
+  average of five networks, is the most accurate at every horizon, but only by 1 to 2% over a gradient-boosted
+  model with simple features. It is 22 to 34% better than persistence.
+- That accuracy came from how the networks are trained (shuffled batches, a loss suited to count data, yesterday's
+  and last week's demand as inputs, more history), not from the graph structure, which contributes about 1% or
+  less, nor from a bigger network.
+- For repositioning the choice of forecaster hardly matters once it is unbiased: the ST-GNN, gradient boosting and
+  a plain four-month time-of-day average perform alike, within the seed-to-seed spread.
 - Repositioning results come from a **simulation**: the trips are real but the fleet is synthetic, because
   public trip data has no vehicle positions. Riders are matched to the nearest idle vehicle within 15 minutes,
   and requests with none are lost. Compare policies with each other rather than reading absolute numbers as

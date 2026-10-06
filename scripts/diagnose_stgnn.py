@@ -49,9 +49,9 @@ def correct(val_pred, val_actual, val_hist, test_pred, test_hist):
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="real_processed_265")
-    parser.add_argument("--checkpoint", default="model/poisson_lag_seed7.pt")
+    parser.add_argument("--checkpoint", default="experiments/r3_poisson_lag.pt")
     parser.add_argument("--predictions", default="artifacts/predictions.npz")
-    parser.add_argument("--metrics", default="model/poisson_lag_seed7_metrics.json")
+    parser.add_argument("--metrics", default="experiments/r3_poisson_lag_metrics.json")
     parser.add_argument("--window", type=int, default=48)
     parser.add_argument("--out", default="results/stgnn_diagnostics.json")
     args = parser.parse_args()

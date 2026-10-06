@@ -116,6 +116,13 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
     saved_args = checkpoint.get("args") or checkpoint.get("config") or {}
     if not isinstance(saved_args, dict):
         saved_args = {}
+    trained_on = saved_args.get("data_dir")
+    if trained_on and (os.path.basename(os.path.normpath(str(trained_on)))
+                       != os.path.basename(os.path.normpath(os.path.abspath(data_dir)))):
+        # Inputs are standardised with the training dataset's statistics, so a checkpoint run
+        # on a different dataset gives forecasts that look plausible but are wrong.
+        raise ValueError(f"{checkpoint_path} was trained on '{trained_on}' but is being run on '{data_dir}'; "
+                         "pass that dataset with --data-dir (build it with preprocess.py if needed)")
     saved_horizons = checkpoint.get("horizons") or saved_args.get("horizons") or DEFAULT_HORIZONS
     head_count = sum(1 for key in state if key.startswith("heads.") and key.endswith(".weight"))
     if head_count == 0:

@@ -137,12 +137,20 @@ def gbm_predictions(demand, times, weather, train_end, train_anchors, test_ancho
     for j, h in enumerate(horizons):
         x_tr = gbm_features(demand, times, weather, train_end, fit_anchors, h, zone_level, spatial)
         y_tr = demand[:, fit_anchors + h - 1].T.reshape(-1)
+        # The L2 term matters for stability, not just accuracy. With a Poisson loss the score of
+        # a zone that is almost always empty drifts very low, its curvature goes to zero, and a
+        # single rare pickup then produces an unbounded leaf value. On four months of data that
+        # made the unregularised model predict infinities for the quiet zones.
         model = HistGradientBoostingRegressor(loss="poisson", learning_rate=0.1, max_iter=max_iter,
-                                              max_leaf_nodes=63, min_samples_leaf=50,
+                                              max_leaf_nodes=63, min_samples_leaf=50, l2_regularization=1.0,
                                               early_stopping=False, random_state=7)
         model.fit(x_tr, y_tr)
         x_te = gbm_features(demand, times, weather, train_end, test_anchors, h, zone_level, spatial)
-        out[:, :, j] = model.predict(x_te).reshape(len(test_anchors), z)
+        predicted = model.predict(x_te)
+        if not np.isfinite(predicted).all() or predicted.max() > 100.0 * max(float(y_tr.max()), 1.0):
+            raise FloatingPointError(f"boosted model produced unbounded predictions at horizon {h} "
+                                     f"(max {np.nanmax(predicted):.3g}, largest training count {y_tr.max():.0f})")
+        out[:, :, j] = predicted.reshape(len(test_anchors), z)
         print(f"[checks] gbm horizon {h * 5} min fitted on {len(y_tr):,} rows", flush=True)
     return out
 

@@ -83,3 +83,20 @@ def test_gbm_spatial_features_are_flow_weighted_neighbour_demand():
     log_d = np.log1p(demand)
     np.testing.assert_allclose(spatial[0, plain.shape[1]], log_d[1, anchors[0] - 1], rtol=1e-5)   # zone 0 <- zone 1
     np.testing.assert_allclose(spatial[1, plain.shape[1]], log_d[0, anchors[0] - 1], rtol=1e-5)   # zone 1 <- zone 0
+
+
+def test_boosted_model_stays_bounded_with_a_nearly_empty_zone():
+    from accuracy_checks import gbm_predictions
+    rng = np.random.default_rng(0)
+    total = 16 * BINS_PER_DAY
+    times = pd.date_range("2024-01-01", periods=total, freq="5min").to_numpy()
+    demand = np.stack([rng.poisson(6.0, total), rng.poisson(1.0, total), np.zeros(total)]).astype(float)
+    demand[2, rng.choice(total, 6, replace=False)] = 1.0          # a zone with a handful of pickups in all
+    train_end = 14 * BINS_PER_DAY
+    train = np.arange(WEEK + 48, train_end - 12)
+    test = np.arange(train_end + 48, total - 12)
+    pred = gbm_predictions(demand, times, np.zeros((total, 2)), train_end, train, test, (1, 12),
+                           stride=2, max_iter=120)
+    assert pred.shape == (len(test), 3, 2) and np.isfinite(pred).all()
+    assert pred.max() < 100.0 and pred[:, 2].max() < 1.0
+    assert abs(pred[:, 0].mean() - 6.0) < 0.5

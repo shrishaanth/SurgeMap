@@ -5,6 +5,7 @@ import importlib
 import sys
 
 COMMANDS = {
+    "download": ("surgemap.data.download", "download the monthly trip files from NYC TLC"),
     "preprocess": ("surgemap.data.preprocess", "build a processed dataset from TLC trip files"),
     "zones": ("surgemap.data.zones", "prepare the taxi-zone polygons and names for the app"),
     "weather": ("surgemap.data.weather", "add the weather channels to a processed dataset"),

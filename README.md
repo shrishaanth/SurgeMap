@@ -30,6 +30,19 @@ The repository contains:
   `python -m surgemap preprocess` from the four monthly files and is not tracked; `data/processed/january_2024` is what
   the simulator and the app run on.
 
+### Getting the data
+
+The raw trip files are not in the repository; they come straight from the TLC. One command downloads all four
+months (about 50 MB each) into `data/raw/`:
+
+```
+python -m surgemap download
+```
+
+or download them one by one: [October 2023](https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-10.parquet), [November 2023](https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-11.parquet), [December 2023](https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-12.parquet), [January 2024](https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2024-01.parquet).
+The processed January dataset is included (`data/processed/january_2024/`), so the app, the simulator and the
+analyses work without downloading anything.
+
 **Correction note.** Earlier versions of this project were built from a CSV that stopped at 29 Jan 21:38 and
 held about 5% fewer trips than the official file, so the last two days of the test split were empty. Every
 metric produced from that extract was inflated and has been discarded. The pipeline now reads the official
@@ -248,6 +261,9 @@ Every step is a command of the `surgemap` package, run from the repository root:
 python -m pip install -r requirements.txt
 python -m surgemap --help
 
+# 0. Download the four monthly trip files into data\raw
+python -m surgemap download
+
 # 1. Preprocess January 2024 (the dataset the simulator and the app use)
 python -m surgemap preprocess --input data\raw\yellow_tripdata_2024-01.parquet --out data\processed\january_2024 --month 2024-01 --all-zones
 
@@ -276,7 +292,7 @@ python -m surgemap plots
 python -m streamlit run app\streamlit_app.py
 ```
 
-The same steps are available as `make preprocess-january`, `make preprocess-four-months`, `make train`,
+The same steps are available as `make download`, `make preprocess-january`, `make preprocess-four-months`, `make train`,
 `make export`, `make simulate`, `make plots`, `make analyses`, `make app` and `make test`.
 
 ---

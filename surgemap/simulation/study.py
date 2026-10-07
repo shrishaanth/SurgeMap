@@ -3,18 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, SCRIPT_DIR)
-
-from reposition import ArrayForecast, LPRepositioner
-from simulator import load_world, run_episode
+from surgemap import paths
+from surgemap.simulation.policy import ArrayForecast, LPRepositioner
+from surgemap.simulation.simulator import load_world, run_episode
 
 METRICS = ("unmet_rate", "mean_wait_served", "mean_wait_penalized", "empty_minutes",
            "reposition_minutes", "moved")
@@ -147,8 +143,8 @@ def parse_list(text: str, cast):
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir", default="real_processed_265")
-    parser.add_argument("--predictions", default="artifacts/predictions.npz")
+    parser.add_argument("--data-dir", default=paths.JANUARY)
+    parser.add_argument("--predictions", default=paths.PREDICTIONS)
     parser.add_argument("--fleet-sizes", default="1000,1500,2000,3000")
     parser.add_argument("--seeds", default="0,1,2")
     parser.add_argument("--policies", default=",".join(FORECAST_POLICIES))
@@ -158,7 +154,7 @@ def main() -> None:
     parser.add_argument("--sweep-policies", default="persistence,stgnn,stgnn_cal,gbm,gbm_cal,oracle")
     parser.add_argument("--lookahead", type=int, default=3)
     parser.add_argument("--workers", type=int, default=6)
-    parser.add_argument("--out", default="results/evaluation.json")
+    parser.add_argument("--out", default=paths.RESULTS_DIR + "/evaluation.json")
     args = parser.parse_args()
     args.fleet_sizes = parse_list(args.fleet_sizes, int)
     args.seeds = parse_list(args.seeds, int)

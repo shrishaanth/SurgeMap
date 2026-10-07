@@ -7,15 +7,11 @@ import random
 
 import numpy as np
 import torch
-from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
-from accuracy_checks import histavg_for_bins, zscore_params
-from stgnn_arch import GraphWaveNet, HiddenGraphMix
-from train_stgnn_torch import DirectedGraphConv
-
-HORIZONS = (1, 3, 6, 12)
-CLIP = 6.0
+from surgemap.data.windows import HORIZONS, MultiHorizonDataset, prepare_inputs, split_bounds
+from surgemap.models.baselines import zscore_params
+from surgemap.models.build import build_model
 
 
 def seed_all(seed: int) -> None:
@@ -24,152 +20,6 @@ def seed_all(seed: int) -> None:
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-
-
-class MultiHorizonDataset(Dataset):
-    """Windows of features with multi-horizon targets and an optional per-target prior.
-
-    Each item is (x [Z, W, F], y [Z, H], prior [Z, H], lagged [Z, H, E]). The prior is zero
-    and the lagged inputs have E = 0 when they are not given.
-    """
-
-    def __init__(self, features: np.ndarray, start: int, end: int,
-                 window: int = 48, horizons=HORIZONS, prior: np.ndarray | None = None,
-                 lagged: np.ndarray | None = None):
-        self.features = torch.as_tensor(features, dtype=torch.float32)
-        self.start, self.end = int(start), int(end)
-        self.window = int(window)
-        self.horizons = tuple(int(h) for h in horizons)
-        if self.features.ndim != 3:
-            raise ValueError("features must have shape [Z,T,F]")
-        if self.window < 1 or not self.horizons or min(self.horizons) < 1:
-            raise ValueError("window and horizons must be positive")
-        if prior is not None and prior.shape != (features.shape[0], features.shape[1], len(self.horizons)):
-            raise ValueError("prior must have shape [Z,T,H]")
-        self.prior = None if prior is None else torch.as_tensor(prior, dtype=torch.float32)
-        self._no_prior = torch.zeros(features.shape[0], len(self.horizons))
-        if lagged is not None and lagged.shape[:3] != (features.shape[0], features.shape[1], len(self.horizons)):
-            raise ValueError("lagged must have shape [Z,T,H,E]")
-        self.lagged = None if lagged is None else torch.as_tensor(lagged, dtype=torch.float32)
-        self._no_lagged = torch.zeros(features.shape[0], len(self.horizons), 0)
-        first = max(self.start, self.window)
-        last = self.end - max(self.horizons)
-        self.times = list(range(first, max(first, last + 1)))
-        self.times = [t for t in self.times if t + max(self.horizons) - 1 < self.end]
-
-    def __len__(self):
-        return len(self.times)
-
-    def __getitem__(self, index):
-        t = self.times[index]
-        x = self.features[:, t - self.window:t, :]
-        y = torch.stack([self.features[:, t + h - 1, 0] for h in self.horizons], dim=-1)
-        prior = self._no_prior if self.prior is None else self.prior[:, t, :]
-        lagged = self._no_lagged if self.lagged is None else self.lagged[:, t]
-        return x, y, prior, lagged
-
-
-class MultiHorizonSTGNN(nn.Module):
-    """Graph convolution per time step, a GRU over time, and one linear head per horizon.
-
-    With zone_dim > 0 each zone gets a learned embedding that is fed to the heads, so the
-    network can tell zones apart. A prior passed to forward() is added to the output, so the
-    network then learns the residual over it. With lag_dim > 0 each head also receives
-    lag_dim extra inputs for its own target bin (demand a day and a week earlier).
-    With mix_hidden the zones exchange their encoded states through one more graph
-    convolution after the GRU (see stgnn_arch.HiddenGraphMix).
-    """
-
-    def __init__(self, n_features: int, hidden: int = 64, horizons=HORIZONS,
-                 n_zones: int = 0, zone_dim: int = 0, n_layers: int = 1, lag_dim: int = 0,
-                 mix_hidden: bool = False, adaptive_dim: int = 0):
-        super().__init__()
-        self.horizons = tuple(int(h) for h in horizons)
-        self.spatial = DirectedGraphConv(n_features, hidden)
-        self.temporal = nn.GRU(hidden, hidden, num_layers=n_layers, batch_first=True)
-        self.mix = HiddenGraphMix(hidden, n_zones, adaptive_dim) if mix_hidden else None
-        self.lag_dim = int(lag_dim)
-        self.zone_embedding = nn.Embedding(n_zones, zone_dim) if zone_dim > 0 else None
-        self.heads = nn.ModuleList(nn.Linear(hidden + zone_dim + self.lag_dim, 1) for _ in self.horizons)
-
-    def encode(self, x, a_out, a_in):
-        spatial = self.spatial(x, a_out, a_in)
-        b, z, w, hidden = spatial.shape
-        encoded, _ = self.temporal(spatial.reshape(b * z, w, hidden))
-        encoded = encoded[:, -1, :].reshape(b, z, hidden)
-        return encoded if self.mix is None else self.mix(encoded, a_out, a_in)
-
-    def forward(self, x, a_out, a_in, prior=None, lagged=None):
-        encoded = self.encode(x, a_out, a_in)
-        if self.zone_embedding is not None:
-            zones = self.zone_embedding.weight.unsqueeze(0).expand(encoded.shape[0], -1, -1)
-            encoded = torch.cat([encoded, zones], dim=-1)
-        if self.lag_dim:
-            out = torch.stack([head(torch.cat([encoded, lagged[:, :, j, :]], dim=-1)).squeeze(-1)
-                               for j, head in enumerate(self.heads)], dim=-1)
-        else:
-            out = torch.stack([head(encoded).squeeze(-1) for head in self.heads], dim=-1)
-        return out if prior is None else out + prior
-
-
-LAG_BINS = (288, 2016)          # one day and one week of 5-minute bins
-
-
-def lagged_inputs(features: np.ndarray, horizons) -> np.ndarray:
-    """For each anchor bin and horizon: standardised demand of the target bin one day and one
-    week earlier, plus a flag for each saying whether that bin exists. Shape [Z, T, H, 4].
-
-    The target bin is anchor + h - 1, so a lag of at least h bins is already observed at the
-    anchor; a day and a week both are for every horizon used here.
-    """
-    if max(horizons) > min(LAG_BINS):
-        raise ValueError("horizons must not exceed the shortest lag")
-    z, total = features.shape[0], features.shape[1]
-    out = np.zeros((z, total, len(horizons), 2 * len(LAG_BINS)), dtype=np.float32)
-    for j, h in enumerate(horizons):
-        target = np.minimum(np.arange(total) + h - 1, total - 1)
-        for k, lag in enumerate(LAG_BINS):
-            source = target - lag
-            ok = source >= 0
-            out[:, ok, j, 2 * k] = features[:, source[ok], 0]
-            out[:, ok, j, 2 * k + 1] = 1.0
-    return out
-
-
-def prepare_inputs(data_dir: str, features: np.ndarray, train_end: int, horizons,
-                   use_weather: bool = False, prior_kind: str = "none", lag_features: bool = False):
-    """Optional extra inputs: weather channels appended to the features, a prior [Z, T, H],
-    and lagged head inputs [Z, T, H, E]. Returns (features, prior, lagged).
-
-    The prior is a time-of-day average for each target bin, in the standardised log units the
-    network predicts. "histavg_z" averages the standardised log demand itself, which is what
-    the squared-error target calls for. "histavg" standardises the log of the average count,
-    which sits above the average of the logs (most for quiet zones); it is kept only so that
-    checkpoints trained with it still load. Bins inside the train split exclude their own
-    value, so the prior does not leak the target.
-    """
-    prior = None
-    lagged = lagged_inputs(features, horizons) if lag_features else None
-    if use_weather:
-        weather = np.load(os.path.join(data_dir, "weather.npy")).astype(np.float32)
-        tiled = np.broadcast_to(weather[None], (features.shape[0],) + weather.shape)
-        features = np.concatenate([features, tiled], axis=2)
-    if prior_kind in ("histavg", "histavg_z"):
-        demand = np.load(os.path.join(data_dir, "demand.npy")).astype(np.float64)
-        times = np.load(os.path.join(data_dir, "times.npy"))
-        total = demand.shape[1]
-        mu, sigma = zscore_params(demand, train_end)
-        if prior_kind == "histavg_z":
-            z = np.clip((np.log1p(demand) - mu[:, None]) / sigma[:, None], -CLIP, CLIP)
-            hist_z = histavg_for_bins(z, times, train_end, np.arange(total))
-        else:
-            hist = histavg_for_bins(demand, times, train_end, np.arange(total))
-            hist_z = np.clip((np.log1p(hist) - mu[:, None]) / sigma[:, None], -CLIP, CLIP)
-        prior = np.stack([hist_z[:, np.minimum(np.arange(total) + h - 1, total - 1)] for h in horizons],
-                         axis=-1).astype(np.float32)
-    elif prior_kind != "none":
-        raise ValueError(f"unknown prior: {prior_kind}")
-    return features, prior, lagged
 
 
 def zone_weights(data_dir: str, train_end: int, power: float) -> np.ndarray:
@@ -191,36 +41,6 @@ def poisson_loss(pred, y, mu, sigma):
     rate = torch.expm1(log1p_rate).clamp(min=1e-3)
     counts = torch.expm1(y * sigma[None, :, None] + mu[None, :, None]).clamp(min=0.0)
     return (rate - counts * torch.log(rate)).mean()
-
-
-def parse_dilations(value) -> tuple:
-    """"1,2,4" or a sequence of ints -> (1, 2, 4)."""
-    parts = value.split(',') if isinstance(value, str) else value
-    dilations = tuple(int(p) for p in parts if str(p).strip())
-    if not dilations or min(dilations) < 1:
-        raise ValueError(f"dilations must be positive integers, got {value!r}")
-    return dilations
-
-
-def build_model(config: dict, n_features: int, n_zones: int, horizons=HORIZONS, lag_dim: int = 0) -> nn.Module:
-    """The network a set of training arguments describes; shared by the trainer and the loader."""
-    arch = config.get("arch") or "gru"
-    adaptive_dim = int(config.get("adaptive_dim") or 0)
-    if arch == "gwnet":
-        return GraphWaveNet(n_features, n_zones, horizons,
-                            channels=int(config.get("channels") or 32),
-                            dilations=parse_dilations(config.get("dilations") or "1,2,4,8,16,1,2,4"),
-                            gcn_order=int(config.get("gcn_order") or 2), adaptive_dim=adaptive_dim,
-                            dropout=float(config.get("dropout") or 0.0), lag_dim=lag_dim,
-                            end_channels=int(config.get("end_channels") or 128),
-                            identity_dim=int(config.get("identity_dim") or 0))
-    if arch != "gru":
-        raise ValueError(f"unknown architecture {arch!r}")
-    mix = bool(config.get("mix_hidden"))
-    return MultiHorizonSTGNN(n_features, int(config.get("hidden") or 64), horizons, n_zones=n_zones,
-                             zone_dim=int(config.get("zone_dim") or 0),
-                             n_layers=int(config.get("layers") or 1), lag_dim=lag_dim,
-                             mix_hidden=mix, adaptive_dim=adaptive_dim if mix else 0)
 
 
 def run_epoch(model, loader, a_out, a_in, device, optimizer=None, weight=None, count_stats=None,
@@ -285,26 +105,6 @@ def scores(pred, target):
     return result
 
 
-def split_bounds(meta, total):
-    split = meta.get("split", {})
-    train_default = int(.70 * total)
-    val_default = int(.85 * total)
-    train = split.get("train")
-    validation = split.get("validation")
-    test = split.get("test")
-    train_end = int(split.get("train_end", train[1] if train else train_default))
-    val_end = int(split.get("val_end", validation[1] if validation else val_default))
-    if train is None:
-        train = [0, train_end]
-    if validation is None:
-        validation = [train_end, val_end]
-    if test is None:
-        test = [val_end, total]
-    return ((int(train[0]), int(train[1])),
-            (int(validation[0]), int(validation[1])),
-            (int(test[0]), int(test[1])))
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", required=True)
@@ -331,10 +131,8 @@ def main():
                         help="poisson: likelihood of the pickup counts instead of squared error in log units")
     parser.add_argument("--arch", choices=("gru", "gwnet"), default="gru",
                         help="gru: graph conv then GRU; gwnet: dilated convolutions alternating with graph convs")
-    parser.add_argument("--mix-hidden", action="store_true",
-                        help="gru only: one more graph convolution on the encoded zone states")
     parser.add_argument("--adaptive-dim", type=int, default=10,
-                        help="embedding size of the learned adjacency used by gwnet and --mix-hidden (0 = off)")
+                        help="gwnet: embedding size of the learned adjacency (0 = off)")
     parser.add_argument("--channels", type=int, default=32, help="gwnet: width of the residual layers")
     parser.add_argument("--end-channels", type=int, default=128, help="gwnet: width of the output layers")
     parser.add_argument("--dilations", default="1,2,4,8,16,1,2,4", help="gwnet: one dilation per layer")

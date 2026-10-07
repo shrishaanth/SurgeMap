@@ -1,6 +1,6 @@
 import numpy as np
 
-from regime_analysis import PERIODS, ZONES, analyse, gap_interval
+from surgemap.evaluation.regimes import PERIODS, ZONES, analyse, gap_interval
 
 
 def test_gap_interval_is_positive_when_the_model_has_less_error():

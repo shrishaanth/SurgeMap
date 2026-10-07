@@ -7,53 +7,31 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 
 import numpy as np
 import pandas as pd
-import torch
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, SCRIPT_DIR)
-
-from accuracy_checks import block_bootstrap_gap, gbm_predictions, histavg_for_bins, load_weather
-from export_predictions import gather_targets, to_counts, train_stats
-from hotspot_eval import collect_predictions, load_checkpoint, split_bounds
+from surgemap import paths
+from surgemap.evaluation.calibration import correct, to_z
+from surgemap.evaluation.metrics import block_bootstrap_gap
+from surgemap.models.baselines import gbm_predictions, histavg_for_bins, load_weather
+from surgemap.evaluation.export import gather_targets, to_counts, train_stats
+from surgemap.data.windows import split_bounds
+from surgemap.evaluation.inference import collect_predictions, load_checkpoint
 
 
 def rmse(a, b, axis=None):
     return np.sqrt(np.mean((a - b) ** 2, axis=axis))
 
 
-def to_z(counts, mu, sigma):
-    z = (np.log1p(np.clip(counts, 0, None)) - mu[None, :, None]) / sigma[None, :, None]
-    return np.clip(z, -6.0, 6.0)
-
-
-def correct(val_pred, val_actual, val_hist, test_pred, test_hist):
-    """Two corrections fitted on validation only: a per-zone, per-horizon multiplicative bias
-    correction on (1 + count), then a per-horizon linear blend with the time-of-day average."""
-    smear = np.clip(np.mean(np.exp(np.log1p(val_actual) - np.log1p(val_pred)), axis=0), 0.5, 3.0)
-    val_fixed = np.clip((1.0 + val_pred) * smear[None] - 1.0, 0.0, None)
-    test_fixed = np.clip((1.0 + test_pred) * smear[None] - 1.0, 0.0, None)
-    blended, weights = np.empty_like(test_fixed), []
-    for j in range(test_pred.shape[-1]):
-        design = np.column_stack([val_fixed[:, :, j].ravel(), val_hist[:, :, j].ravel()])
-        coef, *_ = np.linalg.lstsq(design, val_actual[:, :, j].ravel(), rcond=None)
-        weights.append(coef.tolist())
-        blended[:, :, j] = np.clip(coef[0] * test_fixed[:, :, j] + coef[1] * test_hist[:, :, j], 0.0, None)
-    return test_fixed, blended, weights
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir", default="real_processed_265")
-    parser.add_argument("--checkpoint", default="experiments/r3_poisson_lag.pt")
-    parser.add_argument("--predictions", default="artifacts/predictions.npz")
-    parser.add_argument("--metrics", default="experiments/r3_poisson_lag_metrics.json")
+    parser.add_argument("--data-dir", default=paths.JANUARY)
+    parser.add_argument("--checkpoint", default=paths.EXPERIMENTS_DIR + "/r3_poisson_lag.pt")
+    parser.add_argument("--predictions", default=paths.PREDICTIONS)
+    parser.add_argument("--metrics", default=paths.EXPERIMENTS_DIR + "/r3_poisson_lag_metrics.json")
     parser.add_argument("--window", type=int, default=48)
-    parser.add_argument("--out", default="results/stgnn_diagnostics.json")
+    parser.add_argument("--out", default=paths.SCORES_DIR + "/stgnn_diagnostics.json")
     args = parser.parse_args()
     out = {}
 

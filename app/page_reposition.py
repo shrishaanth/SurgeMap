@@ -75,8 +75,8 @@ def study_section() -> None:
 
 
 def run_demo(policy: str, fleet: int, theta: float, t0: int, hours: int, seed: int) -> dict:
-    from reposition import ArrayForecast, LPRepositioner
-    from simulator import run_episode
+    from surgemap.simulation.policy import ArrayForecast, LPRepositioner
+    from surgemap.simulation.simulator import run_episode
 
     world, d = data.world(), data.predictions()
     horizons = tuple(int(h) for h in d["horizons"])

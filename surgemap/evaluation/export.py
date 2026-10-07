@@ -3,20 +3,16 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 
 import numpy as np
 import pandas as pd
 import torch
 from numpy.lib.stride_tricks import sliding_window_view
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, SCRIPT_DIR)
-
-from hotspot_eval import (collect_predictions, load_checkpoint, ranking_metrics, resolve_checkpoints,
-                          split_bounds)
-from train_multihorizon_torch import MultiHorizonDataset
+from surgemap import paths
+from surgemap.data.windows import MultiHorizonDataset, split_bounds
+from surgemap.evaluation.inference import (collect_predictions, load_checkpoint, ranking_metrics,
+                                           resolve_checkpoints)
 
 BIN_MINUTES = 5
 BINS_PER_DAY = 24 * 60 // BIN_MINUTES
@@ -103,29 +99,12 @@ def mae_by_horizon(pred: np.ndarray, target: np.ndarray) -> list[float]:
     return np.mean(np.abs(pred - target), axis=(0, 1)).tolist()
 
 
-def load_reported(horizons) -> dict[str, list[float]]:
-    """RMSE values (z-score space) already reported by the training and baseline scripts."""
-    root = os.path.dirname(SCRIPT_DIR)
-    reported = {}
-    paths = {
-        "ridge": ("multihorizon_baselines_265_clipped.json", lambda d: d["methods"]["ridge"]),
-        "persistence": ("multihorizon_baselines_265_clipped.json", lambda d: d["methods"]["persistence"]),
-    }
-    for name, (filename, pick) in paths.items():
-        path = os.path.join(root, filename)
-        if os.path.exists(path):
-            with open(path, encoding="utf-8") as f:
-                section = pick(json.load(f))
-            reported[name] = [section[str(h)]["rmse"] for h in horizons]
-    return reported
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir", default="real_processed_265")
-    parser.add_argument("--checkpoint", default="model",
+    parser.add_argument("--data-dir", default=paths.JANUARY)
+    parser.add_argument("--checkpoint", default=paths.MODELS_DIR,
                         help="a checkpoint file, a comma-separated list, or a directory of .pt files to average")
-    parser.add_argument("--out-dir", default="artifacts")
+    parser.add_argument("--out-dir", default=paths.FORECASTS_DIR)
     parser.add_argument("--window", type=int, default=48)
     parser.add_argument("--ridge", type=float, default=1e-3)
     parser.add_argument("--batch-size", type=int, default=64)
@@ -159,16 +138,9 @@ def main() -> None:
     persistence_z = np.repeat(features[:, test_anchors - 1, 0].T[..., None], len(horizons), axis=-1)
 
     z_space = {"stgnn": stgnn_z, "ridge": ridge_z, "persistence": persistence_z}
-    reported = load_reported(horizons)
-    print("[export] RMSE in z-score space vs previously reported values")
+    print("[export] RMSE in z-score space")
     for name, pred in z_space.items():
-        ours = rmse_by_horizon(pred, target_z)
-        line = " ".join(f"{v:.4f}" for v in ours)
-        if name in reported:
-            diff = max(abs(a - b) for a, b in zip(ours, reported[name]))
-            print(f"  {name:12s} {line}  max|diff|={diff:.5f}")
-        else:
-            print(f"  {name:12s} {line}")
+        print(f"  {name:12s} " + " ".join(f"{v:.4f}" for v in rmse_by_horizon(pred, target_z)))
 
     actual = gather_targets(demand, test_anchors, horizons)
     predictions = {

@@ -1,9 +1,8 @@
 import numpy as np
 import pandas as pd
-import pytest
 
-from accuracy_checks import (BINS_PER_DAY, WEEK, block_bootstrap_gap, gbm_features, histavg_for_bins,
-                             ridge_with_histavg, rmse_per_horizon)
+from surgemap.evaluation.metrics import block_bootstrap_gap, rmse_per_horizon
+from surgemap.models.baselines import BINS_PER_DAY, WEEK, gbm_features, histavg_for_bins, ridge_with_histavg
 
 
 def weekly_demand(weeks=3, zones=2):
@@ -86,7 +85,7 @@ def test_gbm_spatial_features_are_flow_weighted_neighbour_demand():
 
 
 def test_boosted_model_stays_bounded_with_a_nearly_empty_zone():
-    from accuracy_checks import gbm_predictions
+    from surgemap.models.baselines import gbm_predictions
     rng = np.random.default_rng(0)
     total = 16 * BINS_PER_DAY
     times = pd.date_range("2024-01-01", periods=total, freq="5min").to_numpy()

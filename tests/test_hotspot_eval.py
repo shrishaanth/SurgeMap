@@ -3,8 +3,9 @@ import json
 import numpy as np
 import torch
 
-from hotspot_eval import load_checkpoint, ranking_metrics
-from train_multihorizon_torch import HORIZONS, MultiHorizonSTGNN
+from surgemap.evaluation.inference import load_checkpoint, ranking_metrics
+from surgemap.data.windows import HORIZONS
+from surgemap.models.gru import MultiHorizonSTGNN
 
 
 def _write_data_dir(path, n_channels, zones=5, bins=300):
@@ -50,7 +51,7 @@ def test_ranking_metrics_on_a_hand_computed_case():
 
 def test_resolve_checkpoints_accepts_a_file_a_list_and_a_directory(tmp_path):
     import pytest
-    from hotspot_eval import resolve_checkpoints
+    from surgemap.evaluation.inference import resolve_checkpoints
     for name in ("b.pt", "a.pt", "notes.json"):
         (tmp_path / name).write_text("x")
     found = resolve_checkpoints(str(tmp_path))

@@ -7,13 +7,15 @@ import os
 import numpy as np
 import pandas as pd
 
+from surgemap import paths
+
 FEATURE_NAMES = ["precip_log_zscore", "temp_zscore"]
 
 
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--weather-csv", required=True)
-    p.add_argument("--data-dir", default="real_processed_265")
+    p.add_argument("--data-dir", default=paths.JANUARY)
     return p.parse_args()
 
 

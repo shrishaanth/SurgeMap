@@ -10,19 +10,17 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 
 import numpy as np
 import torch
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, SCRIPT_DIR)
-
-from accuracy_checks import block_bootstrap_gap, histavg_for_bins, rmse_per_horizon
-from diagnose_stgnn import correct
-from export_predictions import gather_targets, to_counts, train_stats
-from hotspot_eval import collect_predictions, load_checkpoint, split_bounds
+from surgemap import paths
+from surgemap.evaluation.metrics import block_bootstrap_gap, rmse_per_horizon
+from surgemap.models.baselines import histavg_for_bins
+from surgemap.evaluation.calibration import correct
+from surgemap.evaluation.export import gather_targets, to_counts, train_stats
+from surgemap.data.windows import split_bounds
+from surgemap.evaluation.inference import collect_predictions, load_checkpoint
 
 
 def checkpoint_data_dir(path, default):
@@ -33,13 +31,10 @@ def checkpoint_data_dir(path, default):
     and has a different name from the default, scoring it on the default would be wrong.
     """
     saved = torch.load(path, map_location="cpu", weights_only=False).get("args") or {}
-    candidate = saved.get("data_dir")
-    if not candidate or os.path.isdir(candidate):
-        return candidate or default
-    if os.path.basename(os.path.normpath(candidate)) == os.path.basename(os.path.normpath(default)):
-        return default
-    raise FileNotFoundError(f"{path} was trained on {candidate}, which is not present; rebuild that dataset "
-                            "with preprocess.py before scoring this checkpoint")
+    try:
+        return paths.locate_dataset(saved.get("data_dir"), default)
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f"{path}: {exc}") from exc
 
 
 def predict_counts(path, data_dir, window, shipped, with_validation):
@@ -103,8 +98,8 @@ def average(members):
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("checkpoints", nargs="*")
-    parser.add_argument("--data-dir", default="real_processed_265")
-    parser.add_argument("--predictions", default="artifacts/predictions.npz")
+    parser.add_argument("--data-dir", default=paths.JANUARY)
+    parser.add_argument("--predictions", default=paths.PREDICTIONS)
     parser.add_argument("--window", type=int, default=48)
     parser.add_argument("--references", default="stgnn,stgnn_cal,gbm,gbm_cal")
     parser.add_argument("--calibrate", action="store_true")
@@ -124,9 +119,9 @@ def main() -> None:
     for spec in args.ensemble:
         name, _, members = spec.partition("=")
         ensembles[name] = [m for m in members.split(",") if m]
-    paths = list(dict.fromkeys(args.checkpoints + [m for members in ensembles.values() for m in members]))
+    checkpoints = list(dict.fromkeys(args.checkpoints + [m for members in ensembles.values() for m in members]))
     cache = {}
-    for path in paths:
+    for path in checkpoints:
         stored = None
         if args.cache_dir:
             os.makedirs(args.cache_dir, exist_ok=True)

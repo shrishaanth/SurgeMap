@@ -15,6 +15,8 @@ import json
 
 import numpy as np
 
+from surgemap import paths
+
 PERIODS = (("far below normal (lowest 5%)", 0.0, 0.05), ("below normal (5-25%)", 0.05, 0.25),
            ("normal (25-75%)", 0.25, 0.75), ("above normal (75-95%)", 0.75, 0.95),
            ("far above normal (top 5%)", 0.95, 1.0))
@@ -79,11 +81,11 @@ def analyse(actual, forecasts: dict, histavg, horizons, model: str, other: str) 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--predictions", default="artifacts/predictions.npz")
+    parser.add_argument("--predictions", default=paths.PREDICTIONS)
     parser.add_argument("--model", default="stgnn_cal")
     parser.add_argument("--other", default="gbm_cal")
     parser.add_argument("--extra", default="stgnn,gbm,histavg,persistence")
-    parser.add_argument("--out", default="results/regime_analysis.json")
+    parser.add_argument("--out", default=paths.RESULTS_DIR + "/regime_analysis.json")
     args = parser.parse_args()
 
     p = np.load(args.predictions)

@@ -1,7 +1,7 @@
 {
   "config": {
-    "data_dir": "real_processed_265",
-    "predictions": "artifacts/predictions.npz",
+    "data_dir": "data/processed/january_2024",
+    "predictions": "outputs/forecasts/predictions.npz",
     "fleet_sizes": [
       1000,
       1500,
@@ -44,8 +44,8 @@
       "oracle"
     ],
     "lookahead": 3,
-    "workers": 11,
-    "out": "results/evaluation.json"
+    "workers": 4,
+    "out": "outputs/results/evaluation.json"
   },
   "runs": [
     {

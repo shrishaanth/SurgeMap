@@ -1,16 +1,9 @@
-"""Stronger spatio-temporal building blocks than the original graph-conv-then-GRU design.
+"""Graph WaveNet: gated dilated temporal convolutions alternating with diffusion graph convolutions.
 
-The original network mixes zones once, on the raw inputs, over one hop of a fixed flow graph,
-and then encodes every zone separately with a GRU. The pieces here let zones exchange what
-they have encoded, reach several hops, learn an adjacency of their own, and read the window
-with dilated convolutions:
-
-* HiddenGraphMix   graph convolution on the encoded state of each zone (after the GRU)
-* GraphWaveNet     alternating gated dilated temporal convolutions and diffusion graph
-                   convolutions with an adaptive adjacency, after Wu et al. (2019)
-
-Both take the same inputs and return the same output as MultiHorizonSTGNN, so the trainer,
-the checkpoint loader and every downstream script work with either.
+After Wu et al. (2019). Zones exchange what they have encoded after every layer, over several hops
+of the fixed flow graph and of an adjacency the network learns itself. It takes the same inputs and
+returns the same output as the first design (models/gru.py), so the trainer, the checkpoint loader
+and everything downstream work with either.
 """
 from __future__ import annotations
 
@@ -36,32 +29,6 @@ def calendar_slots(x: torch.Tensor) -> tuple:
     slot = torch.round(torch.atan2(cal[..., 0], cal[..., 1]) / turn * SLOTS_PER_DAY).long() % SLOTS_PER_DAY
     weekday = torch.round(torch.atan2(cal[..., 2], cal[..., 3]) / turn * 7).long() % 7
     return slot, weekday
-
-
-class HiddenGraphMix(nn.Module):
-    """One graph convolution over the zones' encoded states, added to them as a residual.
-
-    encoded is [B, Z, C]. Each zone combines its own state with flow-weighted averages of its
-    downstream (A_out) and upstream (A_in) neighbours and, optionally, of the zones a learned
-    adjacency says it resembles.
-    """
-
-    def __init__(self, channels: int, n_zones: int, adaptive_dim: int = 0):
-        super().__init__()
-        self.own = nn.Linear(channels, channels)
-        self.out = nn.Linear(channels, channels, bias=False)
-        self.inc = nn.Linear(channels, channels, bias=False)
-        self.adaptive = adaptive_dim > 0
-        if self.adaptive:
-            self.node_a = nn.Parameter(torch.randn(n_zones, adaptive_dim) * 0.1)
-            self.node_b = nn.Parameter(torch.randn(n_zones, adaptive_dim) * 0.1)
-            self.learned = nn.Linear(channels, channels, bias=False)
-
-    def forward(self, encoded, a_out, a_in):
-        mixed = self.own(encoded) + self.out(a_out @ encoded) + self.inc(a_in @ encoded)
-        if self.adaptive:
-            mixed = mixed + self.learned(adaptive_adjacency(self.node_a, self.node_b) @ encoded)
-        return encoded + torch.relu(mixed)
 
 
 class DiffusionGraphConv(nn.Module):

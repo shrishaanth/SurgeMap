@@ -8,15 +8,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 
 import numpy as np
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, SCRIPT_DIR)
-
-from accuracy_checks import block_bootstrap_gap, rmse_per_horizon
+from surgemap import paths
+from surgemap.evaluation.metrics import block_bootstrap_gap, rmse_per_horizon
 
 
 def online_bias_correction(pred, actual, horizons, half_life: float = 288.0, prior: float = 20.0):
@@ -97,8 +93,8 @@ def hedge(experts: dict, actual, horizons, half_life: float = 288.0):
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--predictions", default="artifacts/predictions.npz")
-    parser.add_argument("--out", default="results/headroom_analysis.json")
+    parser.add_argument("--predictions", default=paths.PREDICTIONS)
+    parser.add_argument("--out", default=paths.RESULTS_DIR + "/headroom_analysis.json")
     args = parser.parse_args()
     p = np.load(args.predictions)
     horizons = [int(h) for h in p["horizons"]]

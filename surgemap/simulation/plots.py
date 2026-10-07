@@ -9,6 +9,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from surgemap import paths
+
 LABELS = {"none": "dispatch only", "persistence": "persistence", "histavg": "historical average",
           "ridge": "ridge",
           "gbm": "gradient boosting", "gbm_cal": "gradient boosting, calibrated",
@@ -62,8 +64,8 @@ def by_fleet(summary, theta, out_path):
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--results", default="results/evaluation.json")
-    parser.add_argument("--out-dir", default="results")
+    parser.add_argument("--results", default=paths.RESULTS_DIR + "/evaluation.json")
+    parser.add_argument("--out-dir", default=paths.FIGURES_DIR)
     args = parser.parse_args()
     with open(args.results, encoding="utf-8") as f:
         data = json.load(f)

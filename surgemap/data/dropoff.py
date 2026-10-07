@@ -7,13 +7,14 @@ import os
 import numpy as np
 import pandas as pd
 
-from preprocess import PICKUP, DROPOFF, PULOC, DOLOC, STEP, iter_chunks, row_validity
+from surgemap import paths
+from surgemap.data.preprocess import PICKUP, DROPOFF, PULOC, DOLOC, STEP, iter_chunks, row_validity
 
 
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--input", required=True)
-    p.add_argument("--data-dir", default="real_processed_265")
+    p.add_argument("--data-dir", default=paths.JANUARY)
     p.add_argument("--chunksize", type=int, default=400_000)
     return p.parse_args()
 

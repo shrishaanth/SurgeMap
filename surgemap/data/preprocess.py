@@ -8,6 +8,8 @@ from collections import Counter
 import numpy as np
 import pandas as pd
 
+from surgemap import paths
+
 PICKUP = "tpep_pickup_datetime"
 DROPOFF = "tpep_dropoff_datetime"
 PULOC = "PULocationID"
@@ -19,7 +21,7 @@ CLIP_BOUND = 6.0
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--input", required=True)
-    p.add_argument("--out", default="real_processed")
+    p.add_argument("--out", default=paths.JANUARY)
     p.add_argument("--month", default="2024-01")
     p.add_argument("--top-k", type=int, default=20)
     p.add_argument("--all-zones", action="store_true")

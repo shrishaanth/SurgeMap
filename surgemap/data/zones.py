@@ -5,6 +5,8 @@ import csv
 import json
 import os
 
+from surgemap import paths
+
 
 def compact_ring(ring, digits: int):
     out = []
@@ -27,7 +29,7 @@ def compact_geometry(geometry: dict, digits: int = 4) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Trim the NYC Open Data 'NYC Taxi Zones' GeoJSON for the app.")
     parser.add_argument("--raw", required=True, help="GeoJSON exported from NYC Open Data dataset 8meu-9t5y")
-    parser.add_argument("--lookup", default="data/taxi_zone_lookup.csv")
+    parser.add_argument("--lookup", default=paths.RAW_DIR + "/taxi_zone_lookup.csv")
     parser.add_argument("--out-dir", default="app/assets")
     args = parser.parse_args()
 

@@ -1,7 +1,7 @@
 """Re-index a forecast file onto another dataset's time grid.
 
 Forecasts exported from a dataset covering several months carry bin indices into that
-dataset. The simulator and the app index into real_processed_265, so the `anchors` are
+dataset. The simulator and the app index into the January dataset, so the `anchors` are
 rewritten to that grid by matching timestamps. Zones and actual counts must agree.
 """
 from __future__ import annotations
@@ -10,6 +10,8 @@ import argparse
 import os
 
 import numpy as np
+
+from surgemap import paths
 
 
 def align(predictions: dict, times: np.ndarray, zone_ids: np.ndarray, demand: np.ndarray) -> dict:
@@ -32,7 +34,7 @@ def align(predictions: dict, times: np.ndarray, zone_ids: np.ndarray, demand: np
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--predictions", required=True)
-    parser.add_argument("--data-dir", default="real_processed_265")
+    parser.add_argument("--data-dir", default=paths.JANUARY)
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
     with np.load(args.predictions) as z:

@@ -1,9 +1,8 @@
 import numpy as np
-import pytest
 
-from reposition import (ArrayForecast, LPRepositioner, oracle_forecast, persistence_forecast,
-                        round_rows, window_demand)
-from simulator import FleetSimulator, World, run_episode
+from surgemap.simulation.policy import (ArrayForecast, LPRepositioner, oracle_forecast, persistence_forecast,
+                                        round_rows, window_demand)
+from surgemap.simulation.simulator import FleetSimulator, World, run_episode
 
 HORIZONS = (1, 3, 6, 12)
 

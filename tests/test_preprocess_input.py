@@ -3,7 +3,7 @@ import pytest
 
 pytest.importorskip("pyarrow")
 
-from preprocess import DOLOC, DROPOFF, PICKUP, PULOC, iter_chunks
+from surgemap.data.preprocess import DOLOC, DROPOFF, PICKUP, PULOC, iter_chunks
 
 COLS = [PICKUP, DROPOFF, PULOC, DOLOC]
 

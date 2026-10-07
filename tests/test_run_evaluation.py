@@ -2,7 +2,7 @@ from argparse import Namespace
 
 import pytest
 
-from run_evaluation import METRICS, build_tasks, frontier_gain, summarize
+from surgemap.simulation.study import METRICS, build_tasks, frontier_gain, summarize
 
 
 def make_run(policy, seed, wait, fleet=1000, theta=0.1, unmet=0.5, empty=100.0):

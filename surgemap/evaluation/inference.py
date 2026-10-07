@@ -3,19 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 from typing import Sequence
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, SCRIPT_DIR)
-
-from train_multihorizon_torch import MultiHorizonDataset, build_model, prepare_inputs
-from train_multihorizon_torch import split_bounds as _split_bounds
+from surgemap import paths
+from surgemap.data.windows import MultiHorizonDataset, prepare_inputs, split_bounds
+from surgemap.models.build import build_model
 
 DEFAULT_HORIZONS = (1, 3, 6, 12)
 _DEFAULT_KS = (3, 5)
@@ -47,19 +42,15 @@ def parse_topk(value: str | Sequence[int] | None) -> tuple[int, ...]:
     return ks
 
 
-def split_bounds(meta: dict, total: int) -> tuple[tuple[int, int], ...]:
-    return _split_bounds(meta, total)
-
-
 def resolve_checkpoints(spec: str) -> list[str]:
     """Checkpoint files named by a path, a comma-separated list, or a directory of .pt files."""
     if os.path.isdir(spec):
-        paths = sorted(os.path.join(spec, name) for name in os.listdir(spec) if name.endswith(".pt"))
+        found = sorted(os.path.join(spec, name) for name in os.listdir(spec) if name.endswith(".pt"))
     else:
-        paths = [part.strip() for part in spec.split(",") if part.strip()]
-    if not paths:
+        found = [part.strip() for part in spec.split(",") if part.strip()]
+    if not found:
         raise FileNotFoundError(f"no checkpoints found for: {spec}")
-    return paths
+    return found
 
 
 def resolve_data_dir(explicit: str | None, checkpoint_args: dict | None) -> str:
@@ -117,8 +108,7 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
     if not isinstance(saved_args, dict):
         saved_args = {}
     trained_on = saved_args.get("data_dir")
-    if trained_on and (os.path.basename(os.path.normpath(str(trained_on)))
-                       != os.path.basename(os.path.normpath(os.path.abspath(data_dir)))):
+    if trained_on and paths.dataset_name(trained_on) != paths.dataset_name(data_dir):
         # Inputs are standardised with the training dataset's statistics, so a checkpoint run
         # on a different dataset gives forecasts that look plausible but are wrong.
         raise ValueError(f"{checkpoint_path} was trained on '{trained_on}' but is being run on '{data_dir}'; "
@@ -139,7 +129,7 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
             hidden = state["spatial.w_out.weight"].shape[0]
         else:
             raise ValueError("cannot infer hidden size from checkpoint; pass --hidden")
-    train_end = _split_bounds(meta, features.shape[1])[0][1]
+    train_end = split_bounds(meta, features.shape[1])[0][1]
     features, prior, lagged = prepare_inputs(data_dir, features, train_end, horizons,
                                              bool(saved_args.get("weather")), saved_args.get("prior") or "none",
                                              bool(saved_args.get("lag_features")))
@@ -160,9 +150,7 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
     # Sizes come from the weights where they can be read off, so checkpoints saved before an
     # option existed still load; the rest (dilations, hops) comes from the saved arguments.
     config = {**saved_args, "arch": arch, "hidden": hidden, "zone_dim": zone_dim, "layers": max(n_layers, 1),
-              "mix_hidden": any(key.startswith("mix.") for key in state)}
-    node_keys = [key for key in ("node_a", "mix.node_a") if key in state]
-    config["adaptive_dim"] = state[node_keys[0]].shape[1] if node_keys else 0
+              "adaptive_dim": state["node_a"].shape[1] if "node_a" in state else 0}
     if arch == "gwnet":
         config["channels"] = state["input_proj.weight"].shape[0]
         config["end_channels"] = state["end.weight"].shape[0]

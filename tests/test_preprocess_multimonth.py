@@ -6,7 +6,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "preprocess.py")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def make_trips(start, days, n, seed):
@@ -18,7 +18,7 @@ def make_trips(start, days, n, seed):
 
 
 def run(args):
-    subprocess.run([sys.executable, SCRIPT] + args, check=True, capture_output=True)
+    subprocess.run([sys.executable, "-m", "surgemap", "preprocess"] + args, check=True, capture_output=True, cwd=ROOT)
 
 
 def test_several_files_a_date_range_fixed_zones_and_explicit_split(tmp_path):

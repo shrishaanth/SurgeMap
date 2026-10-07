@@ -1,6 +1,6 @@
 import numpy as np
 
-from diagnose_stgnn import correct, to_z
+from surgemap.evaluation.calibration import correct, to_z
 
 
 def test_correct_removes_a_multiplicative_bias_learned_on_validation():

@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from accuracy_checks import load_weather
-from align_predictions import align
+from surgemap.models.baselines import load_weather
+from surgemap.evaluation.align import align
 
 H = np.array([1, 3])
 

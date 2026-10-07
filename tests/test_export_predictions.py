@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from export_predictions import (gather_targets, historical_average, persistence_counts,
-                                ridge_predictions, to_counts, train_stats)
+from surgemap.evaluation.export import (gather_targets, historical_average, persistence_counts, ridge_predictions,
+                                        to_counts, train_stats)
 
 
 def test_to_counts_inverts_the_preprocess_zscore():

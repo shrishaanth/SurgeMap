@@ -1,9 +1,10 @@
 # Core dependencies
 numpy>=1.24,<3
 pandas>=2.0,<3
-PyYAML>=6.0,<7
 torch>=2.2,<3
 scipy>=1.10,<2
+scikit-learn>=1.4  # gradient-boosted baseline
+matplotlib>=3.8  # figures of the repositioning study
 pyarrow>=15  # reads the official TLC parquet files
 
 

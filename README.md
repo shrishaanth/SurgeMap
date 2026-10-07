@@ -27,7 +27,7 @@ The repository contains:
 - **Graph**: directed row-normalised flow matrices `A_out` and `A_in` from pickup-to-dropoff counts
 - **Training history**: the shipped models are fitted on October 2023 to January 2024 (35,424 bins, same
   zones), with the same validation days and test window as above. That dataset is built by
-  `preprocess.py` from the four monthly files and is not tracked; `real_processed_265` (January) is what
+  `python -m surgemap preprocess` from the four monthly files and is not tracked; `data/processed/january_2024` is what
   the simulator and the app run on.
 
 **Correction note.** Earlier versions of this project were built from a CSV that stopped at 29 Jan 21:38 and
@@ -49,7 +49,7 @@ parquet file (`data/yellow_tripdata_2024-01.parquet`; `data/` is not tracked).
 
 ## Model
 
-The shipped network is a Graph WaveNet (Wu et al., 2019; `scripts/stgnn_arch.py`):
+The shipped network is a Graph WaveNet (Wu et al., 2019; `surgemap/models/graph_wavenet.py`):
 
 1. **Temporal layers**: eight gated, dilated convolutions (dilations 1, 2, 4, 8, 16, 1, 2, 4) read the 48-bin
    (4 hour) window of each zone.
@@ -83,13 +83,13 @@ shows what the change bought.
 
 Held-out test window: 27 Jan 08:20 to 31 Jan 23:55 2024 (1,329 forecast times, 258 zones). No model was fitted
 on it. Every fitted model below, the ST-GNN and the baselines alike, was trained on the same four months
-(1 October 2023 to 22 January 2024). The shipped ST-GNN is the average of three Graph WaveNets (`model/`) trained
+(1 October 2023 to 22 January 2024). The shipped ST-GNN is the average of three Graph WaveNets (`models/`) trained
 with different random seeds. How the architecture and the recipe were arrived at is described in
 [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
 
 ### Forecast accuracy
 
-RMSE in pickups per zone per 5-minute bin (lower is better), from `artifacts/forecast_metrics.json`:
+RMSE in pickups per zone per 5-minute bin (lower is better), from `outputs/forecasts/forecast_metrics.json`:
 
 | Model | 5 min | 15 min | 30 min | 60 min |
 |-------|-------|--------|--------|--------|
@@ -102,13 +102,13 @@ RMSE in pickups per zone per 5-minute bin (lower is better), from `artifacts/for
 | Persistence | 1.716 | 1.889 | 2.016 | 2.189 |
 
 "Calibrated" means two corrections fitted on the validation split only and applied identically to both models
-(`scripts/calibrate_forecasts.py`): a per-zone, per-horizon bias correction, then a per-horizon blend with the
+(`surgemap/evaluation/calibration.py`): a per-zone, per-horizon bias correction, then a per-horizon blend with the
 time-of-day average. Both models are trained on pickup counts with a Poisson loss and are nearly unbiased already.
 Calibration adds little to the ST-GNN and more to gradient boosting, which is not given the time-of-day average
 as a feature and so gains from the blend.
 
 95% block-bootstrap intervals on RMSE(other) minus RMSE(ST-GNN), positive meaning the ST-GNN is better
-(`scripts/accuracy_checks.py`):
+(`surgemap/evaluation/accuracy.py`):
 
 | ST-GNN as trained vs | 5 min | 15 min | 30 min | 60 min |
 |----------------------|-------|--------|--------|--------|
@@ -123,9 +123,9 @@ as a feature and so gains from the blend.
   horizon.
 - It beats the historical average by 8 to 14%, ridge regression by 7 to 19%, and persistence by 23 to 35%.
 - Pickups arrive at random, so even a perfectly known demand rate leaves an RMSE of about 1.16 here. The
-  calibrated ST-GNN is 14% above that floor at 5 minutes and 22% at 60 (`scripts/headroom_analysis.py`).
+  calibrated ST-GNN is 14% above that floor at 5 minutes and 22% at 60 (`surgemap/evaluation/headroom.py`).
 
-**Where the lead comes from** (`scripts/regime_analysis.py`, `results/regime_analysis.json`). Splitting the test
+**Where the lead comes from** (`surgemap/evaluation/regimes.py`, `outputs/results/regime_analysis.json`). Splitting the test
 window by how unusual citywide demand is, and by how busy the zone is, the calibrated ST-GNN's RMSE is lower than
 calibrated gradient boosting's by:
 
@@ -171,7 +171,7 @@ about 0.1 minute.
 | **ST-GNN, calibrated** | 57.2 / 9.26 | 39.9 / 7.00 | 26.5 / 5.25 | 12.6 / 3.33 |
 | Oracle (true demand) | 56.8 / 9.17 | 40.3 / 6.98 | 25.7 / 5.05 | 12.2 / 3.18 |
 
-![Rider wait vs empty driving](results/tradeoff.png)
+![Rider wait vs empty driving](outputs/figures/tradeoff.png)
 
 - Forecast-driven repositioning clearly helps once the fleet is large enough: at 2,000 vehicles unmet requests fall
   from 42.8% to 26 to 29% and mean wait from 7.6 to about 5.2 to 5.5 minutes. At 1,000 vehicles there is little to
@@ -217,19 +217,19 @@ it is unbiased and knows the daily pattern: a four-month time-of-day average per
 
 ## Repositioning study
 
-**Simulator** (`scripts/simulator.py`). Real pickups of the test window are replayed against a fleet of idle
+**Simulator** (`surgemap/simulation/simulator.py`). Real pickups of the test window are replayed against a fleet of idle
 vehicles placed in proportion to demand. A request is served by an idle vehicle in its own zone with no wait, or
 by the nearest idle vehicle within 15 minutes, whose drive time is the rider's wait. Otherwise it is lost. A
 served trip returns its vehicle to a destination drawn from the observed flows after the observed mean trip
 duration. Zone-to-zone driving times are shortest paths over the observed mean trip durations, since most zone
 pairs have no direct trips.
 
-**Policy** (`scripts/reposition.py`). Every 15 minutes a linear program decides how many idle vehicles to send
+**Policy** (`surgemap/simulation/policy.py`). Every 15 minutes a linear program decides how many idle vehicles to send
 between zones, given the forecast demand over the next 15 minutes. It minimises
 `theta × vehicle driving minutes + rider wait minutes + 15 × unserved requests`. Any forecast can drive it;
 `theta` sets the trade-off between fleet driving and rider waiting.
 
-**Evaluation** (`scripts/run_evaluation.py`). Policies driven by persistence, historical average, ridge,
+**Evaluation** (`surgemap/simulation/study.py`). Policies driven by persistence, historical average, ridge,
 gradient boosting, the ST-GNN (both as trained and calibrated) and the true demand ("oracle", an upper bound) are compared with dispatch alone, over several fleet sizes
 and seeds, with a `theta` sweep to trace each policy's wait vs driving curve. Policies are also compared with
 persistence at equal driving cost, so a policy that simply moves fewer vehicles is not mistaken for a worse one.
@@ -241,40 +241,43 @@ policies, not as a prediction of real-world performance.
 
 ## Usage
 
+Every step is a command of the `surgemap` package, run from the repository root:
+
 ```powershell
 # Install (Python 3.11+; a virtual environment is recommended)
 python -m pip install -r requirements.txt
+python -m surgemap --help
 
-# 1. Preprocess January 2024 into real_processed_265/ (the dataset the simulator and app use)
-python scripts\preprocess.py --input data\yellow_tripdata_2024-01.parquet --out real_processed_265 --month 2024-01 --all-zones
+# 1. Preprocess January 2024 (the dataset the simulator and the app use)
+python -m surgemap preprocess --input data\raw\yellow_tripdata_2024-01.parquet --out data\processed\january_2024 --month 2024-01 --all-zones
 
 # 2. Build the four-month training dataset (same zones, validation days and test window)
-python scripts\preprocess.py --input data\yellow_tripdata_2023-10.parquet,data\yellow_tripdata_2023-11.parquet,data\yellow_tripdata_2023-12.parquet,data\yellow_tripdata_2024-01.parquet --out real_processed_4mo --start 2023-10-01 --end 2024-02-01 --zone-ids-from real_processed_265 --train-end "2024-01-22 16:45" --val-end "2024-01-27 08:20"
+python -m surgemap preprocess --input data\raw\yellow_tripdata_2023-10.parquet,data\raw\yellow_tripdata_2023-11.parquet,data\raw\yellow_tripdata_2023-12.parquet,data\raw\yellow_tripdata_2024-01.parquet --out data\processed\four_months --start 2023-10-01 --end 2024-02-01 --zone-ids-from data\processed\january_2024 --train-end "2024-01-22 16:45" --val-end "2024-01-27 08:20"
 
 # 3. Train three seeds of the ST-GNN on it (about two hours each on a GPU; impractical on a CPU)
-python scripts\train_multihorizon_torch.py --data-dir real_processed_4mo --window 48 --epochs 45 --batch-size 32 --lr 0.001 --patience 6 --shuffle --loss poisson --lag-features --arch gwnet --amp --seed 7 --out model\graph_wavenet_seed7.pt
-python scripts\train_multihorizon_torch.py --data-dir real_processed_4mo --window 48 --epochs 45 --batch-size 32 --lr 0.001 --patience 6 --shuffle --loss poisson --lag-features --arch gwnet --amp --seed 1 --out model\graph_wavenet_seed1.pt
-python scripts\train_multihorizon_torch.py --data-dir real_processed_4mo --window 48 --epochs 45 --batch-size 32 --lr 0.001 --patience 6 --shuffle --loss poisson --lag-features --arch gwnet --amp --seed 2 --out model\graph_wavenet_seed2.pt
+python -m surgemap train --data-dir data\processed\four_months --window 48 --epochs 45 --batch-size 32 --lr 0.001 --patience 6 --shuffle --loss poisson --lag-features --arch gwnet --amp --seed 7 --out models\graph_wavenet_seed7.pt
+python -m surgemap train --data-dir data\processed\four_months --window 48 --epochs 45 --batch-size 32 --lr 0.001 --patience 6 --shuffle --loss poisson --lag-features --arch gwnet --amp --seed 1 --out models\graph_wavenet_seed1.pt
+python -m surgemap train --data-dir data\processed\four_months --window 48 --epochs 45 --batch-size 32 --lr 0.001 --patience 6 --shuffle --loss poisson --lag-features --arch gwnet --amp --seed 2 --out models\graph_wavenet_seed2.pt
 
-# 4. Forecasts (the average of the networks in model/), baselines fitted on the same data, calibration
-python scripts\export_predictions.py --data-dir real_processed_4mo --checkpoint model --out-dir artifacts_4mo
-python scripts\accuracy_checks.py --data-dir real_processed_4mo --predictions artifacts_4mo\predictions.npz --merge
-python scripts\calibrate_forecasts.py --data-dir real_processed_4mo --checkpoint model --predictions artifacts_4mo\predictions.npz
+# 4. Forecasts (the average of the networks in models/), baselines fitted on the same data, calibration
+python -m surgemap export --data-dir data\processed\four_months --checkpoint models --out-dir outputs\forecasts_four_months
+python -m surgemap baselines --data-dir data\processed\four_months --predictions outputs\forecasts_four_months\predictions.npz --merge
+python -m surgemap calibrate --data-dir data\processed\four_months --checkpoint models --predictions outputs\forecasts_four_months\predictions.npz
 
 # 5. Re-index the forecasts onto the January dataset used by the simulator and the app
-python scripts\align_predictions.py --predictions artifacts_4mo\predictions.npz --out artifacts\predictions.npz
-copy artifacts_4mo\forecast_metrics.json artifacts\forecast_metrics.json
+python -m surgemap align --predictions outputs\forecasts_four_months\predictions.npz --out outputs\forecasts\predictions.npz
+copy outputs\forecasts_four_months\forecast_metrics.json outputs\forecasts\forecast_metrics.json
 
 # 6. Run the repositioning study and draw the plots (a few minutes on 10 cores)
-python scripts\run_evaluation.py --workers 10
-python scripts\plot_results.py
+python -m surgemap simulate --workers 10 --seeds 0,1,2,3,4
+python -m surgemap plots
 
 # 7. Explore everything in the app
 python -m streamlit run app\streamlit_app.py
 ```
 
-The same steps are available as `make preprocess-265`, `make preprocess-4mo`, `make train`, `make export`, `make evaluate`,
-`make plots`, `make app` and `make test`.
+The same steps are available as `make preprocess-january`, `make preprocess-four-months`, `make train`,
+`make export`, `make simulate`, `make plots`, `make analyses`, `make app` and `make test`.
 
 ---
 
@@ -282,37 +285,29 @@ The same steps are available as `make preprocess-265`, `make preprocess-4mo`, `m
 
 ```
 SurgeMap/
+├── surgemap/                    The package; `python -m surgemap <command>` runs each step
+│   ├── data/                    Preprocessing of raw trips, training windows, zone polygons, weather
+│   ├── models/                  Graph WaveNet, the first GRU design, the baselines, the model builder
+│   ├── training/                The trainer and its losses
+│   ├── evaluation/              Checkpoint loading and inference, forecast export, calibration, metrics,
+│   │                            bootstrap intervals, and the headroom, regime and diagnostic analyses
+│   ├── simulation/              Fleet simulator, repositioning policy, the study and its plots
+│   └── paths.py                 Where data, models and outputs live
 ├── app/                         Streamlit app (pages, helpers, trimmed zone polygons)
-├── scripts/
-│   ├── preprocess.py            Raw trips (CSV or parquet) -> tensors and graph
-│   ├── train_multihorizon_torch.py   Multi-horizon ST-GNN trainer
-│   ├── stgnn_arch.py            Graph WaveNet and its building blocks
-│   ├── train_stgnn_torch.py     Single-horizon trainer; defines the graph convolution
-│   ├── multihorizon_baseline.py Persistence and ridge baselines (z-score space)
-│   ├── hotspot_eval.py          Top-k hotspot evaluation of a checkpoint
-│   ├── export_predictions.py    Count-space forecasts for the simulator and app
-│   ├── accuracy_checks.py       Extra baselines, bootstrap intervals, merge into the forecasts
-│   ├── regime_analysis.py       Accuracy by how unusual the period and how busy the zone is
-│   ├── calibrate_forecasts.py   Validation-fitted bias correction and blend for both models
-│   ├── diagnose_stgnn.py        Where the ST-GNN's error comes from
-│   ├── compare_checkpoints.py   Scores checkpoints against the shipped models, optionally calibrated
-│   ├── simulator.py             Fleet simulator with dispatch matching
-│   ├── reposition.py            Forecast-driven LP repositioning policy
-│   ├── run_evaluation.py        Policy comparison and trade-off sweep
-│   ├── plot_results.py          Plots of the study
-│   ├── prepare_zones.py         Trims the NYC taxi zone polygons for the app
-│   ├── build_dropoff.py, build_weather.py, stgnn_models.py   Auxiliary tools
-├── model/                       The three shipped Graph WaveNet checkpoints (trained on four months); forecasts are averaged
-├── experiments/                 Checkpoints from the training experiments, including earlier models
 ├── tests/                       pytest suite
-├── real_processed_265/          Preprocessed arrays (demand, features, graph, metadata)
-├── docs/                        EXPERIMENTS.md: what was tried and what each change was worth
-├── notebooks/                   Feature experiments
-└── config.yaml                  Reference settings (not read at runtime)
+├── data/
+│   ├── raw/                     TLC trip files (not tracked)
+│   └── processed/               january_2024/ (tracked); four_months/ is built on demand
+├── models/                      The three shipped Graph WaveNet checkpoints; their forecasts are averaged
+├── outputs/
+│   ├── forecasts/               Test-window forecasts of every model, and their error metrics
+│   ├── results/                 The simulation study, bootstrap intervals, headroom and regime analyses
+│   ├── figures/                 Plots of the study
+│   └── experiments/             Earlier checkpoints, and scores/ with the numbers of every experiment round
+└── docs/                        EXPERIMENTS.md: what was tried and what each change was worth
 ```
 
 ---
-
 ## Limitations
 
 - Four months of training data and one five-day test window, so seasonality is barely covered and the test

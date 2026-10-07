@@ -3,24 +3,21 @@ __pycache__/
 .pytest_cache/
 .venv/
 *.egg-info/
-
-# Raw taxi trip data — large (100s of MB), regenerable from NYC TLC, kept local-only
-/data/
-
-# Regenerable by scripts/preprocess.py and unused by the training and evaluation scripts
-/real_processed_265/features.npy
-/real_processed_265/A_sym.npy
-/real_processed_265/adjacency.npy
-/real_processed_265/edge_index.npy
-
-# Intermediate per-episode cache written by scripts/run_evaluation.py
-/results/*.runs.jsonl
-
 .ipynb_checkpoints/
-/results/*.preds.npz
-/results/*.npz
-/results/pred_cache/
 
-# Built by make preprocess-4mo / make export; too large to track
-/real_processed_4mo/
-/artifacts_4mo/
+# Raw taxi trip files: large and downloadable from NYC TLC
+/data/raw/
+
+# Every processed dataset except January, which the simulator and the app need, is rebuilt on demand
+/data/processed/*
+!/data/processed/january_2024/
+/data/processed/january_2024/features.npy
+/data/processed/january_2024/A_sym.npy
+/data/processed/january_2024/adjacency.npy
+/data/processed/january_2024/edge_index.npy
+
+# Intermediate files: per-episode cache of the simulation study, staged forecasts, prediction caches
+/outputs/results/*.runs.jsonl
+/outputs/results/*.npz
+/outputs/forecasts_four_months/
+/outputs/cache/

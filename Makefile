@@ -1,4 +1,4 @@
-.PHONY: install preprocess-january preprocess-four-months train export simulate plots analyses app test
+.PHONY: install download preprocess-january preprocess-four-months train export simulate plots analyses app test
 
 PYTHON ?= python
 JANUARY ?= data/processed/january_2024
@@ -11,6 +11,10 @@ SEED ?= 7
 install:
 	$(PYTHON) -m pip install --upgrade pip
 	$(PYTHON) -m pip install -r requirements.txt
+
+# The four monthly trip files (about 50 MB each) from the NYC TLC site, into data/raw/.
+download:
+	$(PYTHON) -m surgemap download
 
 # January 2024 only: the dataset the simulator and the app run on.
 preprocess-january:

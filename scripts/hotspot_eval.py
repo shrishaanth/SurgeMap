@@ -14,7 +14,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from train_multihorizon_torch import MultiHorizonDataset, MultiHorizonSTGNN, prepare_inputs
+from train_multihorizon_torch import MultiHorizonDataset, build_model, prepare_inputs
 from train_multihorizon_torch import split_bounds as _split_bounds
 
 DEFAULT_HORIZONS = (1, 3, 6, 12)
@@ -111,7 +111,7 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
     if not isinstance(checkpoint, dict):
         raise ValueError("checkpoint is not a torch serialized dictionary")
     state = checkpoint.get("model", checkpoint)
-    if not isinstance(state, dict) or not any(key.startswith("spatial.") for key in state):
+    if not isinstance(state, dict) or not any(key.startswith(("spatial.", "input_proj.")) for key in state):
         raise ValueError("checkpoint contains no 'model' state dict with spatial parameters")
     saved_args = checkpoint.get("args") or checkpoint.get("config") or {}
     if not isinstance(saved_args, dict):
@@ -128,8 +128,11 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
     if head_count == 0:
         raise ValueError("checkpoint has no 'heads.*' layers; is it a multi-horizon checkpoint?")
     horizons = normalize_horizons(saved_horizons, explicit_horizons, head_count)
+    arch = saved_args.get("arch") or "gru"
     hidden = explicit_hidden
-    if hidden is None:
+    if arch != "gru":
+        hidden = None
+    elif hidden is None:
         if saved_args.get("hidden"):
             hidden = int(saved_args["hidden"])
         elif "spatial.w_out.weight" in state:
@@ -142,7 +145,10 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
                                              bool(saved_args.get("lag_features")))
     if saved_args.get("no_graph"):
         a_out, a_in = np.zeros_like(a_out), np.zeros_like(a_in)
-    n_features = state["spatial.w_out.weight"].shape[1] if "spatial.w_out.weight" in state else features.shape[2]
+    first_layer = "input_proj.weight" if arch == "gwnet" else "spatial.w_out.weight"
+    n_features = state[first_layer].shape[1] if first_layer in state else features.shape[2]
+    if "zone_identity.weight" in state:          # the identity embeddings widen the first layer
+        n_features -= 3 * state["zone_identity.weight"].shape[1]
     if features.shape[2] < n_features:
         raise ValueError(f"checkpoint expects {n_features} feature channels but "
                          f"{features_path} has {features.shape[2]}")
@@ -151,14 +157,23 @@ def load_checkpoint(checkpoint_path: str, data_dir: str, explicit_horizons=None,
     features = features[:, :, :n_features]
     zone_dim = state["zone_embedding.weight"].shape[1] if "zone_embedding.weight" in state else 0
     n_layers = sum(1 for key in state if key.startswith("temporal.weight_ih_l"))
-    model = MultiHorizonSTGNN(features.shape[2], hidden=hidden, horizons=horizons,
-                              n_zones=features.shape[0], zone_dim=zone_dim, n_layers=max(n_layers, 1),
-                              lag_dim=0 if lagged is None else lagged.shape[-1]).to(device)
+    # Sizes come from the weights where they can be read off, so checkpoints saved before an
+    # option existed still load; the rest (dilations, hops) comes from the saved arguments.
+    config = {**saved_args, "arch": arch, "hidden": hidden, "zone_dim": zone_dim, "layers": max(n_layers, 1),
+              "mix_hidden": any(key.startswith("mix.") for key in state)}
+    node_keys = [key for key in ("node_a", "mix.node_a") if key in state]
+    config["adaptive_dim"] = state[node_keys[0]].shape[1] if node_keys else 0
+    if arch == "gwnet":
+        config["channels"] = state["input_proj.weight"].shape[0]
+        config["end_channels"] = state["end.weight"].shape[0]
+        config["identity_dim"] = state["zone_identity.weight"].shape[1] if "zone_identity.weight" in state else 0
+    model = build_model(config, features.shape[2], features.shape[0], horizons,
+                        lag_dim=0 if lagged is None else lagged.shape[-1]).to(device)
     try:
         model.load_state_dict(state)
     except RuntimeError as exc:
         raise ValueError(
-            f"state dict is incompatible with MultiHorizonSTGNN (hidden={hidden}, "
+            f"state dict is incompatible with the {arch} network (hidden={hidden}, "
             f"horizons={horizons}, n_features={features.shape[2]}): {exc}"
         ) from exc
     model.eval()

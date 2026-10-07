@@ -39,11 +39,12 @@ def render() -> None:
 - The test window is the **last 15% of the month**; models never saw it during fitting. Data comes from the
   official NYC TLC trip file.
 - Every fitted model here is trained on the same four months (October 2023 to January 2024). The ST-GNN, an
-  average of five networks, is the most accurate at every horizon, but only by 2 to 4% (1.4 to 2.1% after calibration) over a gradient-boosted
-  model with simple features. It is 22 to 34% better than persistence.
+  average of three Graph WaveNets, is the most accurate at every horizon: 3 to 6% ahead of a gradient-boosted
+  model with simple features (2.4 to 3.4% after calibration) and 4 to 7% ahead in surges. It is 23 to 35%
+  better than persistence.
 - That accuracy came from how the networks are trained (shuffled batches, a loss suited to count data, yesterday's
-  and last week's demand as inputs, more history), not from the graph structure, which contributes about 1% or
-  less, nor from a bigger network.
+  and last week's demand as inputs, more history) and from the architecture: a Graph WaveNet, in which zones
+  exchange information at every layer over a partly learned graph, is 1 to 2% better than the first design.
 - For repositioning the choice of forecaster hardly matters once it is unbiased: the ST-GNN, gradient boosting and
   a plain four-month time-of-day average perform alike, within the seed-to-seed spread.
 - Repositioning results come from a **simulation**: the trips are real but the fleet is synthetic, because

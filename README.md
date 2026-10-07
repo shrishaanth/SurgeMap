@@ -8,7 +8,7 @@ waits. It is part of the [FleetMg](https://github.com/shris-xyz/FleetMg) fleet m
 
 The repository contains:
 
-- **forecasters**: a directed-graph ST-GNN trained on four months of NYC yellow-taxi trips, compared with
+- **forecasters**: a directed-graph ST-GNN (Graph WaveNet) trained on four months of NYC yellow-taxi trips, compared with
   persistence, historical-average, ridge and gradient-boosted baselines fitted on the same data
 - a **fleet simulator** that replays real pickups against a simulated fleet with nearest-vehicle dispatch
 - a **repositioning policy**: a small min-cost-flow linear program driven by any forecast
@@ -49,14 +49,24 @@ parquet file (`data/yellow_tripdata_2024-01.parquet`; `data/` is not tracked).
 
 ## Model
 
-1. **Spatial encoder**: `DirectedGraphConv` mixes neighbour features through `A_out` and `A_in` separately, plus
-   a learned self-loop projection.
-2. **Temporal encoder**: a one-layer GRU over a 48-bin (4 hour) window.
-3. **Multi-horizon heads**: one linear head per horizon (1, 3, 6, 12 bins ahead) on the shared encoder.
+The shipped network is a Graph WaveNet (Wu et al., 2019; `scripts/stgnn_arch.py`):
+
+1. **Temporal layers**: eight gated, dilated convolutions (dilations 1, 2, 4, 8, 16, 1, 2, 4) read the 48-bin
+   (4 hour) window of each zone.
+2. **Spatial layers**: after every temporal layer a graph convolution mixes each zone's state with its
+   neighbours', two hops at a time, over three graphs: the taxi-flow graph in each direction (`A_out`, `A_in`)
+   and an adjacency the network learns itself from two sets of zone embeddings.
+3. **Multi-horizon heads**: every layer contributes to a skip connection, and one linear head per horizon
+   (1, 3, 6, 12 bins ahead) reads the result.
 
 Each output head also receives the demand of its own target time one day and one week earlier. Trained with AdamW
 on shuffled windows, a Poisson loss on the pickup counts, gradient clipping and early stopping on the validation
-loss. The shipped forecast is the average of five such networks trained with different seeds.
+loss. One network has 147,644 parameters; the shipped forecast is the average of three trained with different
+seeds.
+
+The first design, kept in the code as `--arch gru`, applied one graph convolution to the raw inputs and then
+encoded each zone separately with a GRU (26,644 parameters). [How the model got here](#how-the-model-got-here)
+shows what the change bought.
 
 ### Baselines
 
@@ -73,8 +83,8 @@ loss. The shipped forecast is the average of five such networks trained with dif
 
 Held-out test window: 27 Jan 08:20 to 31 Jan 23:55 2024 (1,329 forecast times, 258 zones). No model was fitted
 on it. Every fitted model below, the ST-GNN and the baselines alike, was trained on the same four months
-(1 October 2023 to 22 January 2024). The shipped ST-GNN is the average of five networks (`model/`) trained with
-different random seeds. How the recipe was arrived at is described under
+(1 October 2023 to 22 January 2024). The shipped ST-GNN is the average of three Graph WaveNets (`model/`) trained
+with different random seeds. How the architecture and the recipe were arrived at is described under
 [How the model got here](#how-the-model-got-here).
 
 ### Forecast accuracy
@@ -83,8 +93,8 @@ RMSE in pickups per zone per 5-minute bin (lower is better), from `artifacts/for
 
 | Model | 5 min | 15 min | 30 min | 60 min |
 |-------|-------|--------|--------|--------|
-| **ST-GNN, calibrated** | **1.340** | **1.399** | **1.421** | **1.440** |
-| ST-GNN | 1.342 | 1.408 | 1.433 | 1.456 |
+| **ST-GNN, calibrated** | **1.326** | **1.386** | **1.406** | **1.421** |
+| ST-GNN | 1.326 | 1.390 | 1.411 | 1.425 |
 | Gradient boosting, calibrated | 1.358 | 1.423 | 1.447 | 1.471 |
 | Gradient boosting | 1.371 | 1.447 | 1.480 | 1.514 |
 | Ridge regression | 1.428 | 1.534 | 1.625 | 1.769 |
@@ -102,19 +112,18 @@ as a feature and so gains from the blend.
 
 | ST-GNN as trained vs | 5 min | 15 min | 30 min | 60 min |
 |----------------------|-------|--------|--------|--------|
-| Persistence | +0.374 [+0.335, +0.409] | +0.481 [+0.435, +0.525] | +0.583 [+0.532, +0.637] | +0.733 [+0.648, +0.827] |
-| Historical average | +0.201 [+0.155, +0.252] | +0.137 [+0.106, +0.173] | +0.114 [+0.087, +0.144] | +0.097 [+0.073, +0.123] |
-| Ridge regression | +0.086 [+0.058, +0.116] | +0.127 [+0.092, +0.162] | +0.193 [+0.143, +0.242] | +0.313 [+0.232, +0.403] |
-| Gradient boosting | +0.029 [+0.023, +0.034] | +0.040 [+0.030, +0.051] | +0.046 [+0.038, +0.056] | +0.058 [+0.046, +0.070] |
+| Persistence | +0.391 [+0.351, +0.426] | +0.499 [+0.452, +0.544] | +0.605 [+0.551, +0.661] | +0.764 [+0.667, +0.866] |
+| Historical average | +0.218 [+0.168, +0.271] | +0.155 [+0.123, +0.192] | +0.136 [+0.106, +0.169] | +0.128 [+0.098, +0.158] |
+| Ridge regression | +0.103 [+0.073, +0.135] | +0.145 [+0.109, +0.184] | +0.215 [+0.161, +0.269] | +0.344 [+0.254, +0.440] |
+| Gradient boosting | +0.045 [+0.039, +0.052] | +0.058 [+0.048, +0.068] | +0.068 [+0.058, +0.080] | +0.089 [+0.073, +0.105] |
 
 - The ST-GNN is the most accurate model at every horizon, and every interval excludes zero.
-- **Its lead over gradient boosting is small: 2 to 4% as trained and 1.4 to 2.1% after calibration** (+0.018
-  [+0.013, +0.024], +0.024 [+0.016, +0.033], +0.026 [+0.019, +0.035], +0.031 [+0.024, +0.039]). The lead grows
-  with the horizon. On January alone the calibrated lead was 2 to 3%; gradient boosting gained somewhat more from
-  the extra months than the ST-GNN did (see below).
-- It beats the historical average by 7 to 13%, ridge regression by 6 to 19%, and persistence by 22 to 34%.
+- **It leads gradient boosting by 3.3 to 5.9% as trained and 2.4 to 3.4% after calibration** (+0.033 [+0.026,
+  +0.040], +0.037 [+0.028, +0.046], +0.041 [+0.030, +0.053], +0.050 [+0.037, +0.063]). The lead grows with the
+  horizon.
+- It beats the historical average by 8 to 14%, ridge regression by 7 to 19%, and persistence by 23 to 35%.
 - Pickups arrive at random, so even a perfectly known demand rate leaves an RMSE of about 1.16 here. The
-  calibrated ST-GNN is 15% above that floor at 5 minutes and 24% at 60 (`scripts/headroom_analysis.py`).
+  calibrated ST-GNN is 14% above that floor at 5 minutes and 22% at 60 (`scripts/headroom_analysis.py`).
 
 **Where the lead comes from** (`scripts/regime_analysis.py`, `results/regime_analysis.json`). Splitting the test
 window by how unusual citywide demand is, and by how busy the zone is, the calibrated ST-GNN's RMSE is lower than
@@ -122,22 +131,23 @@ calibrated gradient boosting's by:
 
 | Part of the test window | 5 min | 15 min | 30 min | 60 min |
 |-------------------------|-------|--------|--------|--------|
-| Demand far below usual (lowest 5% of periods) | 3.9% | 6.0%* | 9.3%* | 6.1% |
-| Ordinary periods (middle 50%) | 0.9% | 1.3% | 1.3% | 1.5% |
-| Demand far above usual (top 5% of periods) | 2.6%* | 3.5%* | 3.4%* | 4.0% |
-| Busiest 10% of zones | 1.5% | 1.9% | 2.0% | 2.3% |
-| Quietest 70% of zones | 0.0% | 0.0% | 0.0% | 0.0% |
+| Demand far below usual (lowest 5% of periods) | 4.7% | 7.8% | 10.6%* | 10.1% |
+| Ordinary periods (middle 50%) | 1.9% | 2.3% | 2.3% | 2.4% |
+| Demand far above usual (top 5% of periods) | 3.7% | 4.7% | 5.7% | 7.4% |
+| Busiest 10% of zones | 2.7% | 2.9% | 3.1% | 3.8% |
+| Quietest 70% of zones | 0.2% | 0.2% | 0.2% | 0.2% |
 
-\* the 95% interval includes zero; each 5% slice holds only about 66 forecast times, so these are uncertain.
+\* the 95% interval touches zero; each 5% slice holds only about 66 forecast times.
 
-The ST-GNN is ahead in every slice, never behind. Its lead is two to four times larger when demand departs from
-the usual pattern than in ordinary periods, and it sits entirely in the busy zones: in the quietest 70% of zones,
-which see almost no pickups, the two models are identical.
+The ST-GNN is ahead in every slice. Its lead is two to four times larger when demand departs from the usual
+pattern than in ordinary periods: in surges it is 4 to 7% more accurate, which is when a forecast matters most.
+Nearly all of the lead is in the busy zones; in the quietest 70% of zones, which see almost no pickups, the two
+models are within 0.2%.
 
-Two cautions. The recipe was chosen over several rounds of experiments by looking at this same test window, so
-the ST-GNN's margin is somewhat optimistic; the baselines were not tuned that way. Seed-to-seed variation for one
-network is about 0.002 RMSE at 5 minutes and 0.003 at 60, smaller than the gap to gradient boosting but not by
-much at short horizons.
+Two cautions. The architecture and the recipe were chosen over several rounds of experiments by looking at this
+same test window, so the ST-GNN's margin is somewhat optimistic; the baselines were not tuned that way. Seed-to-seed
+variation for one Graph WaveNet, measured on January, is about 0.005 RMSE at 5 minutes and 0.011 at 60, well below
+the gap to gradient boosting.
 
 Hotspot ranking, as the mean number of the 5 busiest zones also among the 5 predicted, across 5 to 60 minutes:
 calibrated ST-GNN 3.29 to 3.18, calibrated gradient boosting 3.27 to 3.12, persistence 2.93 to 2.55. The top-3 hit
@@ -157,8 +167,8 @@ about 0.1 minute.
 | Historical average | 57.5 / 9.30 | 39.7 / 6.96 | 26.5 / 5.23 | 12.2 / 3.24 |
 | Gradient boosting | 57.9 / 9.35 | 40.6 / 7.10 | 26.3 / 5.23 | 12.5 / 3.32 |
 | Gradient boosting, calibrated | 57.3 / 9.28 | 40.3 / 7.06 | 26.7 / 5.28 | 12.6 / 3.33 |
-| ST-GNN | 57.3 / 9.27 | 40.3 / 7.05 | 27.0 / 5.31 | 12.8 / 3.37 |
-| **ST-GNN, calibrated** | 57.3 / 9.28 | 40.0 / 7.01 | 26.3 / 5.22 | 12.3 / 3.30 |
+| ST-GNN | 57.7 / 9.32 | 40.5 / 7.07 | 26.9 / 5.30 | 12.8 / 3.37 |
+| **ST-GNN, calibrated** | 57.2 / 9.26 | 39.9 / 7.00 | 26.5 / 5.25 | 12.6 / 3.33 |
 | Oracle (true demand) | 56.8 / 9.17 | 40.3 / 6.98 | 25.7 / 5.05 | 12.2 / 3.18 |
 
 ![Rider wait vs empty driving](results/tradeoff.png)
@@ -168,12 +178,12 @@ about 0.1 minute.
   gain.
 - Comparing at equal driving cost along the `theta` sweep at 2,000 vehicles, the wait saved relative to a
   persistence-driven policy is 0.32 minutes for calibrated gradient boosting (90% of what perfect demand knowledge
-  would give), 0.32 for the calibrated ST-GNN (88%), 0.29 for gradient boosting (80%) and 0.28 for the ST-GNN as
+  would give), 0.31 for the calibrated ST-GNN (87%), 0.29 for gradient boosting (80%) and 0.28 for the ST-GNN as
   trained (79%). Comparing at equal `theta` is misleading because policies drive different amounts.
 - **A good forecast is enough; the best forecast adds nothing measurable.** The ST-GNN and gradient boosting are
-  indistinguishable as policies, and a plain four-month time-of-day average does as well as either at
-  `theta = 0.1` (5.23 and 3.24 minutes at 2,000 and 3,000 vehicles). The differences between these policies are
-  within the seed-to-seed spread.
+  indistinguishable as policies even though the ST-GNN forecasts 2 to 6% better, and a plain four-month
+  time-of-day average does as well as either at `theta = 0.1` (5.23 and 3.24 minutes at 2,000 and 3,000
+  vehicles). The differences between these policies are within the seed-to-seed spread.
 - Perfect foresight beats persistence by only 0.2 to 0.35 minutes of wait at 2,000 to 3,000 vehicles, which bounds
   how much any forecaster can add at a 15-minute decision horizon.
 
@@ -210,7 +220,11 @@ network trained on January unless stated:
 | ... average of five seeds | 1.356 | 1.422 | 1.451 | 1.480 |
 | ... trained on two months | 1.360 | 1.420 | 1.445 | 1.468 |
 | ... trained on four months, range over five seeds | 1.346 to 1.351 | 1.404 to 1.408 | 1.428 to 1.431 | 1.447 to 1.453 |
-| **... four months, average of five seeds (shipped)** | **1.340** | **1.399** | **1.421** | **1.440** |
+| ... four months, average of five seeds | 1.340 | 1.399 | 1.421 | 1.440 |
+| Graph WaveNet, same recipe, January, one seed | 1.351 | 1.414 | 1.444 | 1.468 |
+| ... with zone, time-of-day and weekday embeddings, range over two seeds | 1.349 to 1.355 | 1.410 to 1.419 | 1.439 to 1.450 | 1.460 to 1.471 |
+| ... with embeddings, January, average of two seeds | 1.342 | 1.405 | 1.434 | 1.451 |
+| **Graph WaveNet, four months, average of three seeds (shipped)** | **1.326** | **1.386** | **1.406** | **1.421** |
 
 - Shuffling the training windows is the largest single gain from the training recipe.
 - A loss aimed at pickup counts helps: first by weighting busy zones, then, better, as a Poisson likelihood, which
@@ -218,7 +232,14 @@ network trained on January unless stated:
 - Giving the output heads the target time's demand a day and a week earlier helps a little alone and more with
   the Poisson loss. Forcing the same information in as a fixed offset (the time-of-day prior) made short horizons
   much worse.
-- More capacity does not help: 128 hidden units and a second GRU layer both land inside the seed-to-seed spread.
+- **The architecture mattered after all.** Replacing the graph-convolution-then-GRU design with a Graph WaveNet
+  improved the calibrated RMSE by 1.3 to 2.1% on January (two seeds against two seeds, +0.018 [+0.009, +0.026] at
+  5 minutes and +0.032 [+0.014, +0.050] at 60) and by 0.9 to 1.3% on four months, where three Graph WaveNets beat
+  five of the earlier networks at every horizon with intervals excluding zero. Two Graph WaveNets trained on
+  January alone nearly match five of the earlier networks trained on four months. Learned zone, time-of-day and
+  weekday embeddings, suggested by the literature, made no measurable difference on top (`results/arch_january_scores.json`),
+  so the shipped network does not use them.
+- More capacity in the earlier design did not help: 128 hidden units and a second GRU layer both land inside the seed-to-seed spread.
   Neither do weather inputs or a zone embedding on top of the better loss.
 - More training data helps steadily, most at long horizons. Averaging five seeds adds a further 0.4 to 0.6%.
 - Nothing applied after the fact adds much: averaging the ST-GNN with gradient boosting, online bias correction, a
@@ -229,32 +250,40 @@ network trained on January unless stated:
 
 | Model | Trained on | 5 min | 15 min | 30 min | 60 min |
 |-------|------------|-------|--------|--------|--------|
-| ST-GNN, calibrated, five seeds | January | 1.356 | 1.422 | 1.451 | 1.480 |
+| ST-GNN (first design), calibrated, five seeds | January | 1.356 | 1.422 | 1.451 | 1.480 |
 | | four months | 1.340 | 1.399 | 1.421 | 1.440 |
+| ST-GNN (Graph WaveNet), calibrated, two seeds | January | 1.342 | 1.405 | 1.434 | 1.451 |
+| | four months, three seeds | 1.326 | 1.386 | 1.406 | 1.421 |
 | Gradient boosting, calibrated | January | 1.384 | 1.460 | 1.500 | 1.525 |
 | | four months | 1.358 | 1.423 | 1.447 | 1.471 |
 | Historical average | January | 1.701 | 1.702 | 1.703 | 1.706 |
 | | four months | 1.543 | 1.545 | 1.547 | 1.552 |
 
-The ST-GNN improved by 1 to 3% and gradient boosting by 2 to 4%, so a 2 to 3% calibrated lead on January became a
-1.4 to 2.1% lead on four months. The historical average gained most, 9%, because three weeks of history are too
-few to estimate a weekly pattern. (The gradient-boosted model is fitted with an L2 term; without it the Poisson
-model predicted infinities for near-empty zones on four months.)
+Both ST-GNN designs improved by 1 to 3% and gradient boosting by 2 to 4%. The Graph WaveNet's calibrated lead over
+gradient boosting was 3 to 5% on January and is 2.4 to 3.4% on four months, so its advantage is somewhat larger
+when history is short. The historical average gained most, 9%, because three weeks of history are too few to
+estimate a weekly pattern. (The gradient-boosted model is fitted with an L2 term; without it the Poisson model
+predicted infinities for near-empty zones on four months.)
 
-**Does the graph help?** Less than the name suggests. In an early bundled retrain, removing the graph cost 2 to 4%
-at every horizon. In a better-trained recipe (shuffle + zone embedding + weighted loss, January) the cost was 0.3 to
+**Does the graph help?** In the first design, little. In an early bundled retrain, removing the graph cost 2 to 4%
+at every horizon; in a better-trained recipe (shuffle + zone embedding + weighted loss, January) the cost was 0.3 to
 1.2% as trained, significant only at 15 minutes, and nothing measurable after calibration
-(`results/model_selection.json`). Giving the gradient-boosted model flow-weighted neighbour demand left its error
-unchanged (`results/spatial_check.json`). The ablation has not been repeated on the shipped recipe.
+(`results/model_selection.json`). That design used the graph once, on the raw inputs. The Graph WaveNet uses it
+after every layer and adds a learned adjacency, and it is 1 to 2% more accurate, but the change replaced the GRU
+at the same time, so this is not a clean measurement of the graph's share: the shipped network has not been
+retrained without its graph. Giving the gradient-boosted model flow-weighted neighbour demand left its error
+unchanged (`results/spatial_check.json`).
 
 ### What this means
 
-On equal data, a carefully trained ST-GNN is the most accurate forecaster here, but only 2 to 4% ahead of a
-gradient-boosted model with simple features, and 1.4 to 2.1% once both are calibrated. Its accuracy came from how it is trained (shuffling, a loss that matches count data, the right
-extra inputs, more history, averaging seeds), not from its graph structure, whose measured contribution is about
-1% or less, nor from making it bigger. For the repositioning policy the choice of forecaster does not matter once
-it is unbiased and knows the daily pattern: a four-month time-of-day average performs as well as either model. The
-case for the network is a small, consistent accuracy edge, not a decisive one.
+On equal data, the ST-GNN is the most accurate forecaster here: 3 to 6% ahead of a gradient-boosted model with
+simple features, 2.4 to 3.4% once both are calibrated, and 4 to 7% ahead in surges. Two things produced that. The
+first was how the network is trained: shuffling, a loss that matches count data, yesterday's and last week's
+demand as inputs, more history and averaging seeds. The second was the architecture: a network that lets zones
+exchange what they have encoded at every layer, over a graph it partly learns, beat one that mixed them once.
+Making the first design bigger did nothing. The lead is real but modest, because most of the remaining error is
+the randomness of individual pickups. For the repositioning policy the choice of forecaster does not matter once
+it is unbiased and knows the daily pattern: a four-month time-of-day average performs as well as either model.
 
 ---
 
@@ -294,12 +323,10 @@ python scripts\preprocess.py --input data\yellow_tripdata_2024-01.parquet --out 
 # 2. Build the four-month training dataset (same zones, validation days and test window)
 python scripts\preprocess.py --input data\yellow_tripdata_2023-10.parquet,data\yellow_tripdata_2023-11.parquet,data\yellow_tripdata_2023-12.parquet,data\yellow_tripdata_2024-01.parquet --out real_processed_4mo --start 2023-10-01 --end 2024-02-01 --zone-ids-from real_processed_265 --train-end "2024-01-22 16:45" --val-end "2024-01-27 08:20"
 
-# 3. Train five seeds of the ST-GNN on it (about 45 minutes each on a GPU; impractical on a CPU)
-python scripts\train_multihorizon_torch.py --data-dir real_processed_4mo --window 48 --epochs 70 --hidden 64 --batch-size 32 --lr 0.001 --patience 8 --shuffle --loss poisson --lag-features --seed 7 --out model\four_month_seed7.pt
-python scripts\train_multihorizon_torch.py --data-dir real_processed_4mo --window 48 --epochs 70 --hidden 64 --batch-size 32 --lr 0.001 --patience 8 --shuffle --loss poisson --lag-features --seed 1 --out model\four_month_seed1.pt
-python scripts\train_multihorizon_torch.py --data-dir real_processed_4mo --window 48 --epochs 70 --hidden 64 --batch-size 32 --lr 0.001 --patience 8 --shuffle --loss poisson --lag-features --seed 2 --out model\four_month_seed2.pt
-python scripts\train_multihorizon_torch.py --data-dir real_processed_4mo --window 48 --epochs 70 --hidden 64 --batch-size 32 --lr 0.001 --patience 8 --shuffle --loss poisson --lag-features --seed 3 --out model\four_month_seed3.pt
-python scripts\train_multihorizon_torch.py --data-dir real_processed_4mo --window 48 --epochs 70 --hidden 64 --batch-size 32 --lr 0.001 --patience 8 --shuffle --loss poisson --lag-features --seed 4 --out model\four_month_seed4.pt
+# 3. Train three seeds of the ST-GNN on it (about two hours each on a GPU; impractical on a CPU)
+python scripts\train_multihorizon_torch.py --data-dir real_processed_4mo --window 48 --epochs 45 --batch-size 32 --lr 0.001 --patience 6 --shuffle --loss poisson --lag-features --arch gwnet --amp --seed 7 --out model\graph_wavenet_seed7.pt
+python scripts\train_multihorizon_torch.py --data-dir real_processed_4mo --window 48 --epochs 45 --batch-size 32 --lr 0.001 --patience 6 --shuffle --loss poisson --lag-features --arch gwnet --amp --seed 1 --out model\graph_wavenet_seed1.pt
+python scripts\train_multihorizon_torch.py --data-dir real_processed_4mo --window 48 --epochs 45 --batch-size 32 --lr 0.001 --patience 6 --shuffle --loss poisson --lag-features --arch gwnet --amp --seed 2 --out model\graph_wavenet_seed2.pt
 
 # 4. Forecasts (the average of the networks in model/), baselines fitted on the same data, calibration
 python scripts\export_predictions.py --data-dir real_processed_4mo --checkpoint model --out-dir artifacts_4mo
@@ -336,7 +363,10 @@ The same steps are available as `make preprocess-265`, `make preprocess-4mo`, `m
 | `--weather` | append the precipitation and temperature channels |
 | `--prior histavg_z` | predict the residual over the time-of-day average of each target bin |
 | `--no-graph` | remove the neighbour terms (ablation) |
-| `--layers N` | number of GRU layers |
+| `--arch gwnet` | Graph WaveNet (the shipped network); the default `gru` is the first design |
+| `--identity-dim N` | Graph WaveNet: learned zone, time-of-day and weekday embeddings |
+| `--amp` | mixed precision on a GPU |
+| `--layers N` | first design: number of GRU layers |
 | `--lag-features` | give each output head the target bin's demand one day and one week earlier |
 | `--loss poisson` | train on the likelihood of the pickup counts instead of squared error in log units |
 
@@ -365,6 +395,7 @@ SurgeMap/
 ├── scripts/
 │   ├── preprocess.py            Raw trips (CSV or parquet) -> tensors and graph
 │   ├── train_multihorizon_torch.py   Multi-horizon ST-GNN trainer
+│   ├── stgnn_arch.py            Graph WaveNet and its building blocks
 │   ├── train_stgnn_torch.py     Single-horizon trainer; defines the graph convolution
 │   ├── multihorizon_baseline.py Persistence and ridge baselines (z-score space)
 │   ├── hotspot_eval.py          Top-k hotspot evaluation of a checkpoint
@@ -380,7 +411,7 @@ SurgeMap/
 │   ├── plot_results.py          Plots of the study
 │   ├── prepare_zones.py         Trims the NYC taxi zone polygons for the app
 │   ├── build_dropoff.py, build_weather.py, stgnn_models.py   Auxiliary tools
-├── model/                       The five shipped checkpoints (trained on four months); forecasts are averaged
+├── model/                       The three shipped Graph WaveNet checkpoints (trained on four months); forecasts are averaged
 ├── experiments/                 Checkpoints from the training experiments, including earlier models
 ├── tests/                       pytest suite
 ├── real_processed_265/          Preprocessed arrays (demand, features, graph, metadata)

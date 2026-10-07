@@ -20,9 +20,9 @@ preprocess-265:
 preprocess-4mo:
 	$(PYTHON) scripts/preprocess.py --input "$(RAW_4MO)" --out "$(DATA_DIR_4MO)" --start 2023-10-01 --end 2024-02-01 --zone-ids-from "$(DATA_DIR_265)" --train-end "2024-01-22 16:45" --val-end "2024-01-27 08:20"
 
-# One network; the shipped model averages SEED = 7, 1, 2, 3, 4.
+# One network; the shipped model averages SEED = 7, 1, 2.
 train:
-	$(PYTHON) scripts/train_multihorizon_torch.py --data-dir "$(DATA_DIR_4MO)" --window 48 --epochs 70 --hidden 64 --batch-size 32 --lr 0.001 --patience 8 --shuffle --loss poisson --lag-features --seed $(SEED) --out model/four_month_seed$(SEED).pt
+	$(PYTHON) scripts/train_multihorizon_torch.py --data-dir "$(DATA_DIR_4MO)" --window 48 --epochs 45 --batch-size 32 --lr 0.001 --patience 6 --shuffle --loss poisson --lag-features --arch gwnet --amp --seed $(SEED) --out model/graph_wavenet_seed$(SEED).pt
 
 # Forecasts of the networks in model/, the baselines fitted on the same data, calibration,
 # and re-indexing onto the January dataset.

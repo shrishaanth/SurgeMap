@@ -4,11 +4,14 @@ import pytest
 import torch
 from torch.utils.data import DataLoader
 
-from hotspot_eval import collect_predictions, load_checkpoint, split_bounds
-from stgnn_arch import GraphWaveNet, HiddenGraphMix, adaptive_adjacency, calendar_slots
+from surgemap.data.windows import split_bounds
+from surgemap.evaluation.inference import collect_predictions, load_checkpoint
+from surgemap.models.graph_wavenet import GraphWaveNet, adaptive_adjacency, calendar_slots
 from test_capacity_options import F, Z, make_data_dir
-from train_multihorizon_torch import (HORIZONS, MultiHorizonDataset, MultiHorizonSTGNN, build_model,
-                                      parse_dilations, prepare_inputs, run_epoch)
+from surgemap.data.windows import HORIZONS, MultiHorizonDataset, prepare_inputs
+from surgemap.models.build import build_model, parse_dilations
+from surgemap.models.gru import MultiHorizonSTGNN
+from surgemap.training.train import run_epoch
 
 WINDOW = 12
 SMALL = {"arch": "gwnet", "channels": 8, "end_channels": 16, "dilations": "1,2,4", "gcn_order": 2,
@@ -26,27 +29,9 @@ def test_adaptive_adjacency_rows_sum_to_one():
     torch.testing.assert_close(adjacency.sum(dim=1), torch.ones(5))
 
 
-def test_hidden_mix_lets_one_zone_change_anothers_state():
-    torch.manual_seed(0)
-    mix = HiddenGraphMix(6, 4, adaptive_dim=3)
-    encoded = torch.randn(2, 4, 6)
-    changed = encoded.clone()
-    changed[:, 0] += 1.0
-    before, after = mix(encoded, flow(4), flow(4)), mix(changed, flow(4), flow(4))
-    assert before.shape == encoded.shape
-    assert not torch.allclose(before[:, 1:], after[:, 1:])
-    isolated = torch.zeros(4, 4)
-    mix_fixed = HiddenGraphMix(6, 4)
-    torch.testing.assert_close(mix_fixed(encoded, isolated, isolated)[:, 1:],
-                               mix_fixed(changed, isolated, isolated)[:, 1:])
-
-
-def test_gru_without_mix_keeps_the_original_parameters():
-    plain = build_model({"hidden": 64, "adaptive_dim": 10}, F, Z, lag_dim=4)
-    assert isinstance(plain, MultiHorizonSTGNN) and plain.mix is None
-    assert not any(name.startswith("mix.") for name in plain.state_dict())
-    mixed = build_model({"hidden": 64, "mix_hidden": True, "adaptive_dim": 10}, F, Z, lag_dim=4)
-    assert any(name == "mix.node_a" for name in mixed.state_dict())
+def test_build_model_picks_the_architecture_named_in_the_arguments():
+    assert isinstance(build_model({"hidden": 8}, F, Z), MultiHorizonSTGNN)
+    assert isinstance(build_model(SMALL, F, Z), GraphWaveNet)
 
 
 @pytest.mark.parametrize("lag_dim", [0, 4])
@@ -90,8 +75,7 @@ def test_parse_dilations():
         build_model({"arch": "transformer"}, F, Z)
 
 
-@pytest.mark.parametrize("config", [SMALL, {**SMALL, "identity_dim": 4}, {"arch": "gru", "hidden": 8, "mix_hidden": True, "adaptive_dim": 4},
-                                    {"arch": "gru", "hidden": 8, "mix_hidden": True, "adaptive_dim": 0}])
+@pytest.mark.parametrize("config", [SMALL, {**SMALL, "identity_dim": 4}, {"arch": "gru", "hidden": 8}])
 def test_new_architectures_train_and_reload_through_the_checkpoint_loader(tmp_path, config):
     make_data_dir(tmp_path)
     features = np.load(tmp_path / "features_clipped.npy")

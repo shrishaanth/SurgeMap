@@ -5,9 +5,11 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 
-from hotspot_eval import collect_predictions, load_checkpoint, split_bounds
-from train_multihorizon_torch import (HORIZONS, MultiHorizonDataset, MultiHorizonSTGNN, prepare_inputs,
-                                      run_epoch, zone_weights)
+from surgemap.data.windows import split_bounds
+from surgemap.evaluation.inference import collect_predictions, load_checkpoint
+from surgemap.data.windows import HORIZONS, MultiHorizonDataset, prepare_inputs
+from surgemap.models.gru import MultiHorizonSTGNN
+from surgemap.training.train import run_epoch, zone_weights
 
 Z, T, F = 4, 3 * 288, 7
 

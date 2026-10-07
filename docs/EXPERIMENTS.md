@@ -6,16 +6,16 @@ each change was worth. All numbers are RMSE in pickups per zone per 5-minute bin
 
 
 The first ST-GNN (January only, batches of 128 in time order, squared error on log demand, kept as
-`experiments/original_batch128_noshuffle.pt`) scored 1.449, 1.546, 1.618, 1.726 and was beaten by gradient boosting
-at every horizon. `scripts/diagnose_stgnn.py` found why (`results/stgnn_diagnostics.json`):
+`outputs/experiments/original_batch128_noshuffle.pt`) scored 1.449, 1.546, 1.618, 1.726 and was beaten by gradient boosting
+at every horizon. `python -m surgemap diagnose` found why (`outputs/experiments/scores/stgnn_diagnostics.json`):
 
 - it under-predicted total pickups by 8.5 to 12%, from the log scale and the busier test days;
 - it had no notion of which zone it was forecasting and saw only the last 4 hours;
 - its loss weighted all 258 zones equally, while 86% of the squared error in pickups sits in the 30 busiest zones;
 - it underfitted, and its training batches were consecutive, near-identical windows.
 
-Each idea was then tested on a Kaggle T4 GPU, one change at a time (`experiments/`, and the
-`results/*_experiments.json`, `round5_multi_month.json` and `round6_scores.json` files). Calibrated RMSE, one
+Each idea was then tested on a Kaggle T4 GPU, one change at a time (`outputs/experiments/`, and the
+`*_experiments.json`, `round5_multi_month.json` and `round6_scores.json` files in `outputs/experiments/scores/`). Calibrated RMSE, one
 network trained on January unless stated:
 
 | Recipe (batch size 32) | 5 min | 15 min | 30 min | 60 min |
@@ -53,14 +53,14 @@ network trained on January unless stated:
   5 minutes and +0.032 [+0.014, +0.050] at 60) and by 0.9 to 1.3% on four months, where three Graph WaveNets beat
   five of the earlier networks at every horizon with intervals excluding zero. Two Graph WaveNets trained on
   January alone nearly match five of the earlier networks trained on four months. Learned zone, time-of-day and
-  weekday embeddings, suggested by the literature, made no measurable difference on top (`results/arch_january_scores.json`),
+  weekday embeddings, suggested by the literature, made no measurable difference on top (`outputs/experiments/scores/arch_january_scores.json`),
   so the shipped network does not use them.
 - More capacity in the earlier design did not help: 128 hidden units and a second GRU layer both land inside the seed-to-seed spread.
   Neither do weather inputs or a zone embedding on top of the better loss.
 - More training data helps steadily, most at long horizons. Averaging five seeds adds a further 0.4 to 0.6%.
 - Nothing applied after the fact adds much: averaging the ST-GNN with gradient boosting, online bias correction, a
   last-error correction and Hedge weighting over five forecasters each gain 0.5% or less
-  (`results/headroom_analysis.json`).
+  (`outputs/results/headroom_analysis.json`).
 
 **More data helped the baselines more than the ST-GNN.** Calibrated or as-trained RMSE on the same test window:
 
@@ -84,15 +84,15 @@ predicted infinities for near-empty zones on four months.)
 **Does the graph help?** In the first design, little. In an early bundled retrain, removing the graph cost 2 to 4%
 at every horizon; in a better-trained recipe (shuffle + zone embedding + weighted loss, January) the cost was 0.3 to
 1.2% as trained, significant only at 15 minutes, and nothing measurable after calibration
-(`results/model_selection.json`). That design used the graph once, on the raw inputs. The Graph WaveNet uses it
+(`outputs/experiments/scores/model_selection.json`). That design used the graph once, on the raw inputs. The Graph WaveNet uses it
 after every layer and adds a learned adjacency, and it is 1 to 2% more accurate, but the change replaced the GRU
 at the same time, so this is not a clean measurement of the graph's share: the shipped network has not been
 retrained without its graph. Giving the gradient-boosted model flow-weighted neighbour demand left its error
-unchanged (`results/spatial_check.json`).
+unchanged (`outputs/experiments/scores/spatial_check.json`).
 
 ## Training options
 
-`train_multihorizon_torch.py` options, all off by default. The shipped networks use
+`python -m surgemap train` options, all off by default. The shipped networks use
 `--shuffle --loss poisson --lag-features` on the four-month dataset.
 
 | Option | What it does |
@@ -111,16 +111,16 @@ unchanged (`results/spatial_check.json`).
 | `--loss poisson` | train on the likelihood of the pickup counts instead of squared error in log units |
 
 With a weighted loss the `train_rmse` and `val_rmse` printed during training are the weighted objective and are not
-comparable across settings. `scripts/compare_checkpoints.py --calibrate` scores any checkpoints in pickups on the
+comparable across settings. `python -m surgemap compare --calibrate` scores any checkpoints in pickups on the
 test split, against the shipped models, with bootstrap intervals. Batch size 128 needs more than 15 GB of GPU
 memory; 32 fits. Training takes minutes on a GPU and a few hours on a CPU.
 
 ### Training on more months
 
-`preprocess.py` accepts several trip files and a date range, can reuse the zones of an existing dataset, and takes
+`python -m surgemap preprocess` accepts several trip files and a date range, can reuse the zones of an existing dataset, and takes
 explicit split times. This builds a longer training history while keeping the same zones, validation days and test
-window, so `compare_checkpoints.py` can score the result against the shipped forecasts:
+window, so `python -m surgemap compare` can score the result against the shipped forecasts:
 
 ```powershell
-python scripts\preprocess.py --input data\yellow_tripdata_2023-12.parquet,data\yellow_tripdata_2024-01.parquet --out real_processed_2mo --start 2023-12-01 --end 2024-02-01 --zone-ids-from real_processed_265 --train-end "2024-01-22 16:45" --val-end "2024-01-27 08:20"
+python -m surgemap preprocess --input data\raw\yellow_tripdata_2023-12.parquet,data\raw\yellow_tripdata_2024-01.parquet --out data\processed\two_months --start 2023-12-01 --end 2024-02-01 --zone-ids-from data\processed\january_2024 --train-end "2024-01-22 16:45" --val-end "2024-01-27 08:20"
 ```

@@ -13,12 +13,12 @@ from logic import geometry_centroid
 
 APP_DIR = Path(__file__).resolve().parent
 ROOT = APP_DIR.parent
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
 
-PREDICTIONS = ROOT / "artifacts" / "predictions.npz"
-FORECAST_METRICS = ROOT / "artifacts" / "forecast_metrics.json"
-EVALUATION = ROOT / "results" / "evaluation.json"
-DATA_DIR = ROOT / "real_processed_265"
+PREDICTIONS = ROOT / "outputs" / "forecasts" / "predictions.npz"
+FORECAST_METRICS = ROOT / "outputs" / "forecasts" / "forecast_metrics.json"
+EVALUATION = ROOT / "outputs" / "results" / "evaluation.json"
+DATA_DIR = ROOT / "data" / "processed" / "january_2024"
 
 MODELS = ("stgnn_cal", "stgnn", "gbm_cal", "gbm", "ridge", "persistence", "histavg")
 LABELS = {"stgnn_cal": "ST-GNN, calibrated", "gbm_cal": "Gradient boosting, calibrated",
@@ -74,6 +74,6 @@ def zone_centroids() -> dict:
 
 @st.cache_resource(show_spinner=False)
 def world():
-    from simulator import load_world
+    from surgemap.simulation.simulator import load_world
     require(DATA_DIR / "demand.npy", "Generate it with `make preprocess-265`.")
     return load_world(str(DATA_DIR))

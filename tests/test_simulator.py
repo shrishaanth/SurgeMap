@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from simulator import FleetSimulator, World, build_world, repositioning_minutes, run_episode
+from surgemap.simulation.simulator import FleetSimulator, World, build_world, repositioning_minutes, run_episode
 
 INF = np.inf
 

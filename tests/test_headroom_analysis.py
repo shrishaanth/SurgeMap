@@ -1,6 +1,6 @@
 import numpy as np
 
-from headroom_analysis import hedge, online_bias_correction, online_residual_correction
+from surgemap.evaluation.headroom import hedge, online_bias_correction, online_residual_correction
 
 H = (1, 3)
 

@@ -34,25 +34,111 @@ minutes.
 
 ---
 
-## 2. How this is usually solved
+## 2. How this is usually solved: the classical mathematics
 
-| Approach | How it works | Where it falls short |
-|----------|--------------|----------------------|
-| **Persistence** | The next value equals the last one | Ignores every pattern; error grows quickly with the horizon |
-| **Historical average** | The average for this zone at this time of day and day of week | Knows the routine, blind to what is happening right now |
-| **Classical time-series models** (ARIMA and relatives) | Each zone is forecast from a weighted sum of its own recent values | One zone at a time, no information from other zones; assumes smooth, roughly normal values, which small counts are not |
-| **Regression on lagged values** (ridge) | A linear model on each zone's last 48 bins | Only straight-line relationships; a separate model per zone, so nothing is shared between zones |
-| **Gradient-boosted trees** | One model for all zones, on hand-built features: recent values, same time yesterday and last week, calendar, weather | Strong and cheap, but every feature must be designed by hand, and relations between zones exist only if someone writes them in as features |
-| **Recurrent networks per zone** (LSTM, GRU) | A sequence model reads each zone's history | Learns temporal patterns well, but still treats every zone as if it were alone |
-| **Convolutional networks on a map grid** | The city is cut into a square grid and treated as an image | Taxi zones are irregular shapes, and related zones are often far apart: an image filter only sees neighbours |
+Before machine learning, demand forecasting was done with statistical models that a person writes down as an
+equation and fits with a handful of parameters. Write $y_t$ for the number of pickups in one zone in time bin
+$t$, and $\hat{y}_{t+h}$ for the forecast $h$ bins ahead.
 
-**The common gap.** Each approach handles time, or space, or neither, but rarely both together. The two that
-come closest have their own limits: boosted trees see other zones only through features a person thought of,
-and grid convolutions assume that "related" means "next to each other on the map".
+### 2.1 The methods
+
+**Naive (persistence).** Tomorrow looks like today:
+
+$$\hat{y}_{t+h} = y_t$$
+
+**Seasonal average.** Demand repeats with the clock and the calendar, so average the past values that share
+this time of day and day of week. With $S(t)$ the set of earlier bins in the same slot:
+
+$$\hat{y}_{t+h} = \frac{1}{|S(t+h)|} \sum_{s \in S(t+h)} y_s$$
+
+**Moving average and exponential smoothing.** Smooth out the noise by averaging recent values, giving older
+ones less weight. Simple exponential smoothing keeps one running level $\ell_t$ with a smoothing weight
+$0 < \alpha < 1$:
+
+$$\ell_t = \alpha\, y_t + (1-\alpha)\,\ell_{t-1}, \qquad \hat{y}_{t+h} = \ell_t$$
+
+The Holt-Winters extension adds a trend term and a repeating seasonal term, each smoothed the same way.
+
+**Autoregression (AR).** The next value is a weighted sum of the last $p$ values, with weights $\phi_i$ fitted by
+least squares:
+
+$$y_t = c + \sum_{i=1}^{p} \phi_i\, y_{t-i} + \varepsilon_t$$
+
+**ARIMA and seasonal ARIMA.** The standard classical model. It adds two things to autoregression: differencing
+($y_t - y_{t-1}$) to remove trends, and a weighted sum of the last $q$ forecast errors:
+
+$$y'_t = c + \sum_{i=1}^{p} \phi_i\, y'_{t-i} + \sum_{j=1}^{q} \theta_j\, \varepsilon_{t-j} + \varepsilon_t$$
+
+where $y'$ is the differenced series. The seasonal version repeats the same terms at a seasonal lag, such as
+one day.
+
+**Poisson arrival models.** From queueing theory: pickups are treated as random arrivals at a rate
+$\lambda(t)$ that varies through the day, so the count in a bin follows
+
+$$P(y_t = k) = \frac{\lambda(t)^k\, e^{-\lambda(t)}}{k!}$$
+
+and the forecast is the estimated rate for that time slot.
+
+**Models with space.** Two classical ways bring in other zones. Vector autoregression (and its spatial form,
+STARIMA) lets each zone depend linearly on the recent values of the others, with $W$ a fixed matrix saying
+which zones are neighbours:
+
+$$\mathbf{y}_t = \mathbf{c} + \sum_{i=1}^{p} \Phi_i\, W\, \mathbf{y}_{t-i} + \boldsymbol{\varepsilon}_t$$
+
+The gravity model from transport planning estimates the flow between two zones from their sizes $m_i$, $m_j$
+and the distance $d_{ij}$ between them:
+
+$$F_{ij} = k\, \frac{m_i\, m_j}{d_{ij}^{\,\beta}}$$
+
+### 2.2 Where they fall short
+
+| Method | What it captures | Where it falls short here |
+|--------|------------------|---------------------------|
+| Persistence | The current level | No pattern at all; error grows quickly with the horizon |
+| Seasonal average | The daily and weekly routine | Blind to what is happening right now: a surge looks like any other Friday |
+| Exponential smoothing, Holt-Winters | Level, trend, one repeating season | One season only (day *or* week); one zone at a time |
+| AR, ARIMA, seasonal ARIMA | Momentum and short-term correlation | Linear; assumes smooth, roughly normal values, but 80% of the cells here are zero; a daily season of 288 bins is slow and unstable to fit, for each of 258 zones |
+| Poisson arrival model | The right distribution for counts | The rate depends only on the clock, so it is the seasonal average again |
+| Vector autoregression, STARIMA | Linear influence between zones | 258 zones means tens of thousands of coefficients per lag; the neighbour matrix is fixed by hand |
+| Gravity model | Average flows between zones | Static: it describes typical movement, not the next 15 minutes |
+
+**The common limits.**
+
+- **Linearity.** Each model is a weighted sum. A relationship such as "a rise next door matters only late on a
+  weekend night" cannot be expressed.
+- **The structure is chosen by a person.** How many lags, which season, which zones count as neighbours: all
+  are decided before fitting, and the model cannot discover one that was not written in.
+- **Time and space are handled separately**, or space is left out. The models that include both do so with a
+  fixed neighbour matrix and linear terms.
+- **The wrong noise model for small counts.** Most assume errors that are symmetric and of constant size;
+  taxi counts are non-negative, mostly zero, and noisier where they are larger.
+
+### 2.3 What this project does with them
+
+Three of these ideas are kept as baselines, so the network is measured against the classical approach on the
+same data:
+
+| Baseline in the project | Classical idea it represents |
+|-------------------------|------------------------------|
+| Persistence | The naive forecast |
+| Historical average | The seasonal average, which is also the Poisson model with a time-of-day rate |
+| Ridge regression on the last 48 bins | Autoregression of order 48 per zone, on demand together with the calendar and dropoff inputs, fitted with a small penalty to keep the weights stable |
+
+ARIMA, exponential smoothing and vector autoregression were not run. A fourth baseline is not classical:
+gradient-boosted trees, the standard machine-learning approach for tabular data, included because it is the
+strongest simple competitor.
+
+Two ideas from this section also carry into the network itself: it is trained with the Poisson likelihood,
+because that is the right noise model for counts, and its graph plays the role of the neighbour matrix $W$,
+except that part of it is learned.
 
 ---
 
 ## 3. The approach: a spatio-temporal graph neural network
+
+The classical models are limited by being linear, by having their structure chosen in advance, and by
+treating time and space apart. A neural network on a graph removes each of those limits: it is non-linear, it
+learns which lags and which zones matter, and it handles both dimensions in one model.
 
 The city is modelled as a **graph**. Each zone is a node, and an edge between two zones says that what happens
 in one tells you something about the other. A network then learns two things together:
@@ -273,7 +359,8 @@ flowchart LR
 
 ## 8. Summary
 
-- Forecasting taxi demand needs time and space handled together; the usual methods handle one or neither.
+- Forecasting taxi demand needs time and space handled together. The classical models are linear, have their
+  structure fixed by hand, and treat space separately or not at all.
 - A Graph WaveNet alternates temporal layers, which read each zone's history at several time scales, with
   spatial layers, which let zones share what they have learned over trip-flow graphs and a graph the network
   learns itself.

@@ -1,11 +1,14 @@
 # Presentation: Member 1's part
 
-Slides 1 to 7 of the 15-minute talk: the real-world use case, the problem, how it is solved
-classically and why that falls short, our approach, and the graph. Member 2 continues from the
-temporal part onward.
+Slides 1 to 9 of the 15-minute talk: the real-world use case, the problem, how it is solved
+classically and why that falls short, our approach, and the whole **spatial part**: why zones need
+each other, how the graph is built, the graph convolution, and the learned graph. Member 2 takes
+over at the temporal part and covers how the components connect, the final system architecture and
+future work.
 
-**Time budget: about 7.5 minutes.** The scripts total roughly 990 words, which is about 7.6
-minutes at a spoken pace of 130 words a minute. Replace `[Name 1]` and `[Name 2]` with your names.
+**Time budget.** The scripts total roughly 1,340 words, which is about 10.3 minutes at a spoken pace
+of 130 words a minute. That is more than half of a 15-minute talk, so see "Fitting into 15 minutes"
+below before you rehearse. Replace `[Name 1]` and `[Name 2]` with your names.
 
 | # | Slide | Minutes |
 |---|-------|---------|
@@ -13,10 +16,22 @@ minutes at a spoken pace of 130 words a minute. Replace `[Name 1]` and `[Name 2]
 | 2 | The problem statement | 1.1 |
 | 3 | How it is usually solved, without machine learning | 1.1 |
 | 4 | The problems they face | 1.3 |
-| 5 | Our approach | 1.0 |
+| 5 | Our approach | 1.1 |
 | 6 | Why zones need each other | 0.65 |
-| 7 | Building the graph | 1.3 |
-| | **Total** | **7.65** |
+| 7 | Building the graph | 1.2 |
+| 8 | The graph convolution | 1.5 |
+| 9 | The learned graph, and the spatial part as a whole | 1.2 |
+| | **Total** | **10.3** |
+
+### Fitting into 15 minutes
+
+Member 2's part takes about 6.5 to 7 minutes. To bring the whole talk to 15, Member 1 should land
+at about 8.5 minutes, so about 2 minutes need to come out. Cuts, in the order I would make them:
+
+1. **Merge slides 3 and 4** into one: equations on the left, the problems on the right (saves 0.7).
+2. **Merge slide 6 into slide 7** and keep only the four patterns as one line (saves 0.5).
+3. **Shorten slides 1 and 2** to one paragraph of script each (saves 0.4).
+4. **Cut the worked example on slide 8 to one sentence** if you are still over (saves 0.4).
 
 ---
 
@@ -239,7 +254,8 @@ seasonal-average forecasts.
 > loss, which is the right noise model for counts.
 >
 > The specific design is called Graph WaveNet, and our forecast averages three of them. I'll cover
-> the graph; my partner will cover how the network reads time and how the two are combined."
+> the spatial side, the graph and how zones learn from each other; my partner will cover how the
+> network reads time, and how everything fits together."
 
 ---
 
@@ -313,11 +329,97 @@ matrix.
 > learns. From them it works out which zones are useful to each other for forecasting, including
 > similar districts with no trips between them.
 >
-> So each zone has three views of its surroundings. [Name 2] will now show how the network reads
-> time, and how these graphs are used inside it."
+> So each zone has three views of its surroundings. Next I'll show how the network actually uses
+> them."
 
-**Handoff to Member 2:** the graph slide covers *what the graph is*. How information is passed over
-it (the graph convolution) is in Member 2's slide on how the parts are combined.
+**Link to the next slide:** this slide covers *what the graph is*; the next one covers how
+information is passed over it.
+
+---
+
+## Slide 8: The graph convolution
+
+**Title:** How a zone learns from its neighbours
+
+**On the slide**
+- **What it does:** replaces each zone's state with a weighted mix of its neighbours' states. The
+  weights are the graph.
+- **A toy example** (illustrative numbers)
+  - three zones, A, B and C, with states 12, 4 and 8
+  - zone A's row in the outgoing-flow graph: 10% of its trips stay in A, 70% go to B, 20% go to C
+  - new state of A = 0.1 x 12 + 0.7 x 4 + 0.2 x 8 = **5.6**
+- **In the model**, for every zone and every time step:
+  - its own state, plus **outgoing flow**, **incoming flow** and the **learned graph**, each at
+    **one hop** and **two hops**: 7 views of 32 numbers = 224 numbers
+  - one learned layer mixes the 224 back down to 32
+- **Direction:** outgoing looks at where this zone's trips go; incoming looks at where the trips
+  arriving here come from
+- **Two hops** = neighbours of neighbours, from applying the graph twice
+- Applied after every temporal layer, **8 times**; the largest part of the model: 57,600 of its
+  147,644 parameters
+
+**Visual:** two panels. Left: zone A with arrows from B and C weighted 0.7 and 0.2, and the formula.
+Right: seven blocks (own, three graphs x two hops) joining into one mixing layer.
+
+**Script**
+
+> "Now the key operation. A graph convolution replaces each zone's state with a weighted mix of its
+> neighbours' states, and the weights are the graph. Take a toy example with three zones. Zone A
+> sends ten percent of its trips within itself, seventy percent to B and twenty percent to C. So A's
+> new state is point-one times its own, plus point-seven times B's, plus point-two times C's. With
+> states of twelve, four and eight, that gives five-point-six. Real states are 32 numbers each, not
+> one, but the arithmetic is the same.
+>
+> In the network, each zone looks at seven views: its own state, and for each of the three graphs,
+> one hop and two hops, where two hops means the neighbours of neighbours, from applying the graph
+> twice. Seven views of 32 numbers is 224 numbers, and a learned layer mixes them back to 32. The
+> outgoing graph shows where this zone's trips go; the incoming graph, where its trips come from.
+>
+> This is done after every temporal layer, eight times, at every time step. It is also the largest
+> part of the model: 57,600 of the 147,644 parameters."
+
+---
+
+## Slide 9: The learned graph, and the spatial part as a whole
+
+**Title:** The graph the network writes for itself
+
+**On the slide**
+- **How it is made:** two tables of numbers, 258 zones x 10 numbers each (5,160 parameters)
+  - score for zone *v* looking at zone *w* = (row *v* of the first table) dot (row *w* of the second)
+  - negative scores are set to zero, then each row is normalised so it sums to 1
+  - row *v* is therefore a distribution over all other zones
+- **How it is learned:** starts as small random numbers and is trained by the same loss as the rest
+  of the network, so it moves towards whichever links reduce forecast error
+- **What it is not:** a map, a distance, or proof of cause and effect; and it is fixed after
+  training, the same for every input
+- **The spatial part, summed up**
+
+| Question a zone asks | Answered by |
+|---|---|
+| Where do my riders go? | outgoing flow graph |
+| Where do they come from? | incoming flow graph |
+| Which zones behave like me? | learned graph |
+| How far does this reach? | two hops per layer, 8 layers |
+
+**Visual:** a heat map of the learned graph (if you have one) or the three-graph diagram from slide 7.
+
+**Script**
+
+> "The third graph is the interesting one. Each zone gets two small lists of ten numbers. To decide
+> how much zone V should listen to zone W, the network multiplies V's first list by W's second,
+> drops negative values, and normalises, so every zone ends up with a distribution over all the
+> others. These numbers start random and are trained by the same loss as everything else, so they
+> move towards whichever links help the forecast.
+>
+> We should be careful about what this is. It is not a map, and it is not causation. It is a
+> learned set of useful links, and it does not change from one input to the next.
+>
+> To sum up the spatial part: each zone asks where its riders go, where they come from, and which
+> zones behave like it, and it does that eight times, two hops each. My partner will now show how the
+> network reads time, and how these two halves fit together."
+
+**Handoff to Member 2.**
 
 ---
 
@@ -351,6 +453,12 @@ it (the graph convolution) is in Member 2's slide on how the parts are combined.
 | Is the graph built using the test days? | Yes. The flow counts use all trips in the date range, which includes the five test days (about 4% of the data). This is a mild form of leakage, and it is listed as a limitation. |
 | What does the learned graph actually find? | We have not inspected it; it should not be read as a map or as causation |
 | Does the graph really help? | In our first design it was worth about 1% or less; for the shipped network we did not isolate it, because the whole architecture changed at once |
+| What exactly does a graph convolution compute? | For each zone, a weighted average of its neighbours' states, with the graph as the weights, followed by a learned mix of the results (slide 8) |
+| Why two hops? | Two hops reach neighbours of neighbours within a layer, and the layers stack; it is the usual setting for this model and we did not tune it |
+| Why three graphs, not one? | Direction matters, and the learned graph covers links that trips do not. We did not test removing each graph in the shipped model, so we cannot give each one's separate value. |
+| Are the weights the same for every zone? | The mixing layer is shared across zones; what differs is each zone's state and its row of the graph |
+| Is that attention? | No. Attention computes weights from the input each time; ours are fixed once trained |
+| How is the learned graph initialised and trained? | Small random numbers, trained end to end by the forecasting loss together with all other weights |
 
 ---
 
@@ -371,17 +479,22 @@ it (the graph convolution) is in Member 2's slide on how the parts are combined.
 | Ridge (autoregression) error | 1.428 to 1.769 |
 | Possible zone pairs, 258 x 258 | 66,564 |
 | Zone pairs with at least one trip | 37,475 |
-| Learned adjacency | two 10-number vectors per zone |
+| Learned adjacency | two 258 x 10 tables of numbers (5,160 parameters) |
+| Network parameters | 147,644 in total; graph convolution layers 57,600 (39%) |
+| Graph convolution input per zone | 7 views x 32 channels = 224 numbers, mixed down to 32 |
+| Layers | 8; two hops per graph per layer |
 
 ## Before you present
 
 - **Open the Uber and Lyft posts once** (links below) and check that slide 1's wording is a fair
   reading. An evaluator may look them up.
 - **Say "ARIMA was not run" before you are asked.** Ridge regression is the autoregression baseline.
-- **Time it.** The scripts add up to about 990 words; read them aloud once with a timer. If you
+- **Time it.** The scripts add up to about 1,340 words; read them aloud once with a timer. If you
   run over, cut slide 3's equations down to naive and vector autoregression, and drop the
   "what we measured" paragraph on slide 4 to one sentence.
 - **Know the graph limitation cold:** flow built from all trips, including the test days.
+- **Be able to do the toy example on slide 8 on a whiteboard.** It is the single most likely thing an
+  evaluator will ask you to explain.
 
 ## Sources
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import streamlit as st
 
 import data
+from logic import capture_share, study_rows
 
 
 def render() -> None:
@@ -10,47 +11,54 @@ def render() -> None:
     st.subheader("Short-term taxi demand forecasting and fleet repositioning for New York City")
     st.write(
         "SurgeMap forecasts how many taxi pickups each of New York's taxi zones will see in the next 5 to 60 "
-        "minutes, and tests whether using those forecasts to pre-position idle vehicles reduces how long riders "
-        "wait. The forecaster is a directed-graph spatio-temporal neural network (ST-GNN) trained on four months of "
-        "NYC yellow-taxi trips.")
+        "minutes, finds the busiest spots ahead of time, and tests whether using the forecast to move idle "
+        "vehicles before demand appears gets riders served sooner. The forecaster is a spatio-temporal graph "
+        "neural network (ST-GNN, a Graph WaveNet) trained on four months of NYC yellow-taxi trips.")
 
-    metrics, d = data.forecast_metrics(), data.predictions()
+    metrics, d, result = data.forecast_metrics(), data.predictions(), data.evaluation()
     models, horizons = metrics["models"], metrics["horizons"]
     j = horizons.index(3) if 3 in horizons else 0
+    best = data.FORECAST_MODEL if data.FORECAST_MODEL in models else "stgnn"
     c1, c2, c3 = st.columns(3)
     c1.metric("Zones forecast", f"{len(d['zone_ids'])}")
     c2.metric("Test forecasts", f"{metrics['n_anchors']:,}")
-    best = "stgnn_cal" if "stgnn_cal" in models else "stgnn"
     if best in models and "persistence" in models:
         gain = 100 * (1 - models[best]["rmse"][j] / models["persistence"]["rmse"][j])
-        c3.metric(f"RMSE vs persistence ({horizons[j] * 5} min)", f"-{gain:.0f}%")
+        c3.metric(f"Forecast error vs the naive baseline ({horizons[j] * 5} min)", f"-{gain:.0f}%")
+
+    fleet, theta = result["config"]["sweep_fleet"], result["config"]["theta"]
+    rows = study_rows(result["summary"], fleet, theta)
+    base, model, top = rows["none"], rows["stgnn_cal"], rows["oracle"]
+    share = capture_share(base["mean_wait_penalized"], model["mean_wait_penalized"], top["mean_wait_penalized"])
+    r1, r2, r3 = st.columns(3)
+    r1.metric(f"Requests left unserved ({fleet:,} vehicles)", f"{100 * model['unmet_rate']:.1f}%",
+              f"{100 * (model['unmet_rate'] - base['unmet_rate']):+.1f} pts with repositioning", delta_color="inverse")
+    r2.metric("Mean rider wait", f"{model['mean_wait_penalized']:.1f} min",
+              f"{model['mean_wait_penalized'] - base['mean_wait_penalized']:+.1f} min with repositioning",
+              delta_color="inverse")
+    if share is not None:
+        r3.metric("Share of the best possible gain", f"{100 * share:.0f}%")
 
     st.markdown("""
 **Pages**
-- **Demand forecast map**: predicted vs actual demand for every zone at any time in the test window, with the
-  predicted hotspots outlined.
-- **Zone explorer**: actual demand against each model for one zone.
-- **Forecast accuracy**: error by horizon for the ST-GNN and three baselines.
-- **Repositioning**: the simulation study and an interactive simulator.
+- **Demand forecast map**: predicted vs actual demand for every zone at any time in the test window, and how many
+  of the real busiest spots were found.
+- **Zone explorer**: actual demand against the forecast for one zone.
+- **Forecast accuracy**: the only page that compares against other methods (gradient boosting, ridge regression,
+  historical average and persistence).
+- **Repositioning**: what the forecast is worth to a fleet, and an interactive simulator.
 """)
 
     st.subheader("How to read the results")
     st.markdown("""
-- The test window is the **last 15% of the month**; models never saw it during fitting. Data comes from the
+- The test window is the **last 15% of the month**; the model never saw it during fitting. Data comes from the
   official NYC TLC trip file.
-- Every fitted model here is trained on the same four months (October 2023 to January 2024). The ST-GNN, an
-  average of three Graph WaveNets, is the most accurate at every horizon: 3 to 6% ahead of a gradient-boosted
-  model with simple features (2.4 to 3.4% after calibration) and 4 to 7% ahead in surges. It is 23 to 35%
-  better than persistence.
-- That accuracy came from how the networks are trained (shuffled batches, a loss suited to count data, yesterday's
-  and last week's demand as inputs, more history) and from the architecture: a Graph WaveNet, in which zones
-  exchange information at every layer over a partly learned graph, is 1 to 2% better than the first design.
-- For repositioning the choice of forecaster hardly matters once it is unbiased: the ST-GNN, gradient boosting and
-  a plain four-month time-of-day average perform alike, within the seed-to-seed spread.
+- The model is trained on four months (October 2023 to January 2024). It is an average of three Graph WaveNets:
+  temporal convolutions read each zone's history while graph convolutions let zones share what they find.
 - Repositioning results come from a **simulation**: the trips are real but the fleet is synthetic, because
   public trip data has no vehicle positions. Riders are matched to the nearest idle vehicle within 15 minutes,
-  and requests with none are lost. Compare policies with each other rather than reading absolute numbers as
-  real-world performance.
+  and requests with none are lost. "Perfect knowledge" of future demand is an upper limit, not a real system.
+  Compare scenarios with each other rather than reading absolute numbers as real-world performance.
 - Predictions in this app are precomputed; nothing here retrains a model.
 """)
     st.caption("Data: NYC Taxi & Limousine Commission trip records; zone shapes from NYC Open Data.")

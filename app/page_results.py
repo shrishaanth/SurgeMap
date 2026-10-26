@@ -16,6 +16,15 @@ def render() -> None:
              f"({metrics['n_anchors']:,} forecast times, {len(d['zone_ids'])} zones). Models were fitted on "
              "earlier days only; errors below are in pickups per zone per 5-minute bin.")
 
+    lead_key = data.FORECAST_MODEL if data.FORECAST_MODEL in metrics["models"] else "stgnn"
+    others = {m: v for m, v in metrics["models"].items() if m not in ("stgnn_cal", "stgnn")}
+    if others:
+        best_other = [min(v["rmse"][j] for v in others.values()) for j in range(len(horizons))]
+        lead = metrics["models"][lead_key]["rmse"]
+        gain = [100 * (1 - lead[j] / best_other[j]) for j in range(len(horizons))]
+        st.success(f"The {data.LABELS[lead_key]} forecast has the lowest error at every horizon: "
+                   f"{min(gain):.1f}% to {max(gain):.1f}% lower than the best of the other methods.")
+
     rows = []
     for model, v in metrics["models"].items():
         for j, h in enumerate(horizons):

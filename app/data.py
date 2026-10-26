@@ -20,11 +20,19 @@ FORECAST_METRICS = ROOT / "outputs" / "forecasts" / "forecast_metrics.json"
 EVALUATION = ROOT / "outputs" / "results" / "evaluation.json"
 DATA_DIR = ROOT / "data" / "processed" / "january_2024"
 
-MODELS = ("stgnn_cal", "stgnn", "gbm_cal", "gbm", "ridge", "persistence", "histavg")
+# The baselines are used for the accuracy comparison only. Every other page (forecast map, zone explorer,
+# hotspots, repositioning) shows the ST-GNN.
+FORECAST_MODEL = "stgnn_cal"
+BASELINES = ("gbm_cal", "gbm", "ridge", "persistence", "histavg")
+MODELS = ("stgnn_cal", "stgnn") + BASELINES
 LABELS = {"stgnn_cal": "ST-GNN, calibrated", "gbm_cal": "Gradient boosting, calibrated",
           "stgnn": "ST-GNN", "gbm": "Gradient boosting",
           "ridge": "Ridge regression", "persistence": "Persistence",
           "histavg": "Historical average", "oracle": "Oracle (true demand)", "none": "Dispatch only"}
+# Repositioning policies shown in the app: no repositioning, the ST-GNN forecast, and perfect knowledge.
+POLICIES = ("stgnn_cal", "oracle")
+POLICY_LABELS = {"none": "No repositioning", "stgnn_cal": "ST-GNN forecast",
+                 "oracle": "Perfect knowledge"}
 
 
 def require(path: Path, hint: str) -> None:
@@ -41,6 +49,15 @@ def predictions() -> dict:
         out = {k: z[k] for k in z.files}
     out["anchor_times"] = pd.to_datetime(out["anchor_times"])
     return out
+
+
+@st.cache_data(show_spinner=False)
+def window_hotspot_rate(horizon_index: int, k: int) -> dict:
+    """How well the predicted top-k zones match the real top-k over the whole test window."""
+    from logic import hits_per_time
+    d = predictions()
+    hits = hits_per_time(d[FORECAST_MODEL][:, :, horizon_index], d["actual"][:, :, horizon_index], k)
+    return {"mean_hits": float(hits.mean()), "at_least_one": float((hits >= 1).mean()), "n": int(len(hits))}
 
 
 @st.cache_data(show_spinner=False)

@@ -6,8 +6,10 @@ import pandas as pd
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app"))
 
-from logic import (anchor_index, diverging_colors, geometry_centroid, hotspot_table, moves_to_arcs,
-                   ranks_desc, sequential_colors)
+import pytest
+
+from logic import (anchor_index, capture_share, diverging_colors, geometry_centroid, hits_per_time, hotspot_table,
+                   moves_to_arcs, ranks_desc, sequential_colors, study_rows)
 
 
 def test_sequential_colors_are_lighter_for_small_values_and_valid_rgba():
@@ -62,3 +64,37 @@ def test_moves_to_arcs_skips_zones_without_a_polygon():
     arcs = moves_to_arcs(moves, zone_ids, centroids, names)
     assert len(arcs) == 1 and arcs.iloc[0]["vehicles"] == 4 and arcs.iloc[0]["to_zone"] == "Two"
     assert moves_to_arcs(np.zeros((3, 3), dtype=int), zone_ids, centroids, names).empty
+
+
+def test_hits_per_time_agrees_with_the_hotspot_table_at_every_time():
+    rng = np.random.default_rng(1)
+    pred, actual = rng.random((40, 25)), rng.integers(0, 6, (40, 25)).astype(float)     # many ties in actual
+    zone_ids = np.arange(25)
+    for k in (3, 5, 10):
+        expected = [hotspot_table(pred[i], actual[i], zone_ids, {}, k)[1] for i in range(40)]
+        np.testing.assert_array_equal(hits_per_time(pred, actual, k), expected)
+
+
+def test_hits_per_time_is_k_for_a_perfect_forecast_and_bounded_otherwise():
+    actual = np.random.default_rng(2).random((10, 30))
+    np.testing.assert_array_equal(hits_per_time(actual, actual, 5), np.full(10, 5))
+    wrong = -actual
+    hits = hits_per_time(wrong, actual, 5)
+    assert (hits >= 0).all() and (hits <= 5).all()
+
+
+def test_capture_share_is_zero_at_the_baseline_one_at_the_best_case():
+    assert capture_share(8.0, 8.0, 5.0) == pytest.approx(0.0)
+    assert capture_share(8.0, 5.0, 5.0) == pytest.approx(1.0)
+    assert capture_share(7.63, 5.25, 5.05) == pytest.approx(0.9225, abs=1e-3)
+    assert capture_share(5.0, 4.0, 5.0) is None            # the best case is no better than the baseline
+
+
+def test_study_rows_picks_dispatch_alone_at_theta_zero_and_the_policies_at_theta():
+    summary = [{"policy": "none", "fleet": 100, "theta": 0.0, "v": 1}, {"policy": "none", "fleet": 200, "theta": 0.0, "v": 2},
+               {"policy": "stgnn_cal", "fleet": 100, "theta": 0.1, "v": 3}, {"policy": "stgnn_cal", "fleet": 100, "theta": 0.5, "v": 4},
+               {"policy": "oracle", "fleet": 100, "theta": 0.1, "v": 5}]
+    rows = study_rows(summary, 100, 0.1)
+    assert [rows[p]["v"] for p in ("none", "stgnn_cal", "oracle")] == [1, 3, 5]
+    with pytest.raises(KeyError):
+        study_rows(summary, 300, 0.1)

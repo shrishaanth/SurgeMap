@@ -288,7 +288,7 @@ copy outputs\forecasts_four_months\forecast_metrics.json outputs\forecasts\forec
 python -m surgemap simulate --workers 10 --seeds 0,1,2,3,4
 python -m surgemap plots
 
-# 7. Explore everything in the app
+# 7. Explore everything in the app (needs: python -m pip install -r app\requirements.txt)
 python -m streamlit run app\streamlit_app.py
 ```
 

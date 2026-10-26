@@ -13,16 +13,17 @@ VIEWS = ("Predicted", "Actual", "Error (predicted minus actual)")
 
 def render() -> None:
     st.title("Demand forecast map")
+    st.caption(f"Forecast by the {data.LABELS[data.FORECAST_MODEL]} model. Baselines are compared on the Forecast accuracy page.")
     d = data.predictions()
     names, geo = data.zone_names(), data.zone_geojson()
     horizons = [int(h) for h in d["horizons"]]
     times = d["anchor_times"]
 
-    c1, c2, c3, c4 = st.columns(4)
-    model = c1.selectbox("Model", data.MODELS, format_func=data.LABELS.get)
-    minutes = c2.selectbox("Forecast horizon", [h * 5 for h in horizons], format_func=lambda m: f"{m} min ahead")
-    view = c3.radio("Show", VIEWS, horizontal=False)
-    k = c4.selectbox("Hotspots (top-k)", (3, 5, 10))
+    model = data.FORECAST_MODEL
+    c1, c2, c3 = st.columns(3)
+    minutes = c1.selectbox("Forecast horizon", [h * 5 for h in horizons], format_func=lambda m: f"{m} min ahead")
+    view = c2.radio("Show", VIEWS, horizontal=False)
+    k = c3.selectbox("Top spots to find (top-k)", (3, 5, 10))
 
     when = st.slider("Forecast issued at", min_value=times[0].to_pydatetime(),
                      max_value=times[-1].to_pydatetime(), value=times[len(times) // 3].to_pydatetime(),
@@ -70,7 +71,7 @@ def render() -> None:
                     initial_view_state=pdk.ViewState(latitude=40.73, longitude=-73.96, zoom=9.6),
                     tooltip={"html": "<b>{zone}</b> ({borough})<br/>Predicted: {pred}<br/>Actual: {actual}"})
 
-    left, right = st.columns([3, 2])
+    left, right = st.columns([5, 4])
     with left:
         st.pydeck_chart(deck, height=560)
         scale = (f"Red = predicted above actual, blue = below (up to ±{vmax:.0f} requests)" if view == VIEWS[2]
@@ -79,7 +80,14 @@ def render() -> None:
         st.caption(scale)
     with right:
         table, hits = hotspot_table(pred, actual, zone_ids, names, k)
-        st.subheader(f"Predicted top {k} hotspots")
-        st.metric("Real top-k zones found", f"{hits} of {k}")
-        st.dataframe(table, hide_index=True)
-        st.caption("A hit means the zone is among the k busiest zones in that 5-minute bin.")
+        st.subheader(f"Predicted top {k} spots")
+        st.metric("Real top spots found at this time", f"{hits} of {k}")
+        compact = table.assign(Found=table["Hit"].map({True: "yes", False: "no"}))[["Zone", "Predicted", "Actual", "Actual rank", "Found"]].rename(columns={"Actual rank": "Rank"})
+        st.dataframe(compact, hide_index=True)
+        st.caption("Found: the zone really was among the k busiest zones in that 5-minute bin. Rank is its real rank.")
+        overall = data.window_hotspot_rate(h, k)
+        st.subheader("Over the whole test window")
+        o1, o2 = st.columns(2)
+        o1.metric(f"Real top-{k} found, on average", f"{overall['mean_hits']:.1f} of {k}")
+        o2.metric("At least one found", f"{100 * overall['at_least_one']:.0f}%")
+        st.caption(f"Across all {overall['n']:,} forecast times, at {minutes} minutes ahead.")

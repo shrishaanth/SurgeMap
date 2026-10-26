@@ -80,3 +80,44 @@ def moves_to_arcs(moves: np.ndarray, zone_ids, centroids: dict, names: dict) -> 
                      "to_lon": b[0], "to_lat": b[1]})
     return pd.DataFrame(rows, columns=["from_zone", "to_zone", "vehicles", "from_lon", "from_lat",
                                        "to_lon", "to_lat"])
+
+
+def hits_per_time(pred: np.ndarray, actual: np.ndarray, k: int) -> np.ndarray:
+    """For every forecast time, how many of the k predicted-busiest zones are real top-k zones.
+
+    pred and actual are [N, Z]. Ties are broken by zone position, exactly as hotspot_table does.
+    """
+    pred, actual = np.asarray(pred, float), np.asarray(actual, float)
+    n, z = actual.shape
+    predicted_top = np.argsort(-pred, axis=1, kind="stable")[:, :k]
+    order = np.argsort(-actual, axis=1, kind="stable")
+    rank = np.empty_like(order)
+    np.put_along_axis(rank, order, np.broadcast_to(np.arange(1, z + 1), (n, z)), axis=1)
+    return (np.take_along_axis(rank, predicted_top, axis=1) <= k).sum(axis=1)
+
+
+def capture_share(baseline: float, policy: float, best: float) -> float | None:
+    """Share of the best possible improvement a policy achieves (all three are 'lower is better').
+
+    0 means no better than the baseline, 1 means as good as the best case. None when the best case
+    is no better than the baseline, since there is then nothing to capture.
+    """
+    gap = baseline - best
+    if gap <= 1e-9:
+        return None
+    return (baseline - policy) / gap
+
+
+def study_rows(summary: list[dict], fleet: int, theta: float, policies=("none", "stgnn_cal", "oracle")) -> dict:
+    """The simulation-study row of each policy for one fleet size.
+
+    Dispatch alone ("none") has no theta, so it is looked up at theta 0; the others at `theta`.
+    """
+    out = {}
+    for policy in policies:
+        wanted = 0.0 if policy == "none" else theta
+        match = [r for r in summary if r["policy"] == policy and r["fleet"] == fleet and abs(r["theta"] - wanted) < 1e-9]
+        if not match:
+            raise KeyError(f"no study row for policy={policy} fleet={fleet} theta={wanted}")
+        out[policy] = match[0]
+    return out

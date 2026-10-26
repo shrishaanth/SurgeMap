@@ -320,7 +320,7 @@ SurgeMap/
 │   ├── results/                 The simulation study, bootstrap intervals, headroom and regime analyses
 │   ├── figures/                 Plots of the study
 │   └── experiments/             Earlier checkpoints, and scores/ with the numbers of every experiment round
-└── docs/                        PRESENTATION.md: a walkthrough of the project; EXPERIMENTS.md: what was tried
+└── docs/                        EXPERIMENTS.md: what was tried and what each change was worth
 ```
 
 ---

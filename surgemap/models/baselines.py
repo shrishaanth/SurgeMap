@@ -15,6 +15,13 @@ BINS_PER_DAY = 288
 DAY, WEEK = BINS_PER_DAY, 7 * BINS_PER_DAY
 
 
+
+
+'''
+The below function is for converting timestamp into
+Day of the week: Monday = 0, Tuesday = 1, … Sunday = 6.
+Time-of-day bin: an integer from 0 to 287.
+'''
 def calendar_keys(times) -> tuple[np.ndarray, np.ndarray]:
     index = pd.DatetimeIndex(times)
     return index.dayofweek.to_numpy(), ((index.hour * 60 + index.minute) // BIN_MINUTES).to_numpy()
@@ -25,16 +32,37 @@ def histavg_for_bins(demand, times, train_end, bins, smooth: int = 3) -> np.ndar
 
     A bin inside the train split would count itself, so its own contribution is removed.
     """
-    dow, tod = calendar_keys(times)
-    z = demand.shape[0]
-    sums, counts = np.zeros((z, 7, BINS_PER_DAY)), np.zeros((7, BINS_PER_DAY))
+    dow, tod = calendar_keys(times)  # day of week , time of day
+    z = demand.shape[0]   # no of zones
+    sums, counts = np.zeros((z, 7, BINS_PER_DAY)), np.zeros((7, BINS_PER_DAY)) # zone → weekday → time of day
+    '''
+    counts records how many observations contributed to each weekday/time-of-day group. It is shared across zones because the timestamps are common to all zones.
+    np.add.at(array, indices, values)
+    add values into array at the specified indices.
+    '''
     np.add.at(sums, (slice(None), dow[:train_end], tod[:train_end]), demand[:, :train_end])
     np.add.at(counts, (dow[:train_end], tod[:train_end]), 1.0)
+    # take every zone's demand at time t and add it to that observation's weekday/time-bin group.  
     s_sum, s_cnt = np.zeros_like(sums), np.zeros_like(counts)
+    # creates a new array filled with zeros that has the same shape as the given array.
+    # this loop is for smoothening
     for shift in range(-smooth, smooth + 1):
         s_sum += np.roll(sums, shift, axis=2)
         s_cnt += np.roll(counts, shift, axis=1)
+    '''
+    Shift	Time bin	Time
+    -3	105	8:45 AM
+    -2	106	8:50 AM
+    -1	107	8:55 AM
+    0	108	9:00 AM
+    +1	109	9:05 AM
+    +2	110	9:10 AM
+    +3	111	9:15 AM
+    The loop adds the corresponding arrays for each shifts_sum contains the combined demand totals across these neighboring bins, and s_cnt contains the corresponding combined observation counts.
+    '''
     bins = np.asarray(bins)
+    # bins contains the time indices for which we want to calculate historical average demand.
+    # coverting it into numpy array 
     total = s_sum[:, dow[bins], tod[bins]]
     count = np.broadcast_to(s_cnt[dow[bins], tod[bins]], total.shape).copy()
     inside = bins < train_end
@@ -53,9 +81,9 @@ def load_weather(data_dir, n_bins: int) -> np.ndarray:
 
 
 def zscore_params(demand, train_end):
-    log_counts = np.log1p(demand[:, :train_end])
+    log_counts = np.log1p(demand[:, :train_end]) # Log-transform the demand
     return log_counts.mean(axis=1), np.maximum(log_counts.std(axis=1), 1e-6)
-
+    # two arrays -> mean and standard deviation for each zone
 
 def ridge_with_histavg(features, demand, times, train_end, train_anchors, test_anchors,
                        window, horizons, alpha: float = 1e-3) -> np.ndarray:
@@ -76,11 +104,13 @@ def ridge_with_histavg(features, demand, times, train_end, train_anchors, test_a
     n_zones = features.shape[0]
     out = np.empty((len(test_anchors), n_zones, len(horizons)), dtype=np.float32)
     for zone in range(n_zones):
-        windows = sliding_window_view(features[zone], window, axis=0)
+        windows = sliding_window_view(features[zone], window, axis=0) # for creating the window view
+        # hstack for stacking horizontally
+        # stack usually stacks , creating new dimensions
         x_tr = np.hstack([windows[train_anchors - window].reshape(len(train_anchors), -1), hist_train[zone]])
         x_te = np.hstack([windows[test_anchors - window].reshape(len(test_anchors), -1), hist_test[zone]])
         y_tr = np.stack([features[zone, train_anchors + h - 1, 0] for h in horizons], axis=1)
-        design = np.hstack([x_tr, np.ones((len(x_tr), 1))]).astype(np.float64)
+        design = np.hstack([x_tr, np.ones((len(x_tr), 1))]).astype(np.float64)  # adding ones for intercept
         penalty = alpha * np.eye(design.shape[1])
         penalty[-1, -1] = 0.0
         coef = np.linalg.solve(design.T @ design + penalty, design.T @ y_tr.astype(np.float64))
@@ -99,15 +129,28 @@ def gbm_features(demand, times, weather, train_end, anchors, h, zone_level, spat
 
     def per_zone(values):                     # values [Z, N] -> flat in (anchor, zone) order
         return np.asarray(values, dtype=np.float32).T.reshape(-1)
-
+    #-1 means flatten into one dimension, with NumPy determining the resulting length automatically.
     for lag in (1, 2, 3, 6):
         cols.append(per_zone(log_d[:, anchors - lag]))
+    # takes the log-demand for every zone at those earlier timestamps and adds it as a feature column.
     for span in (12, 48):
         cols.append(per_zone(np.stack([log_d[:, a - span:a].mean(axis=1) for a in anchors], axis=1)))
+    '''
+    This calculates average log-demand over two historical windows:
+span	Duration
+12 bins	1 hour
+48 bins	4 hours
+For each anchor, it looks backward over that many bins and calculates the mean for each zone.
+
+For example, when span = 12, it averages the 12 five-minute intervals before the anchor.
+
+np.stack(..., axis=1) combines the averages for all anchors into a [Z, N] array. Then per_zone() flattens them into one feature column.
+    '''
     for lag in (DAY, WEEK):
         idx = target - lag
         vals = np.where(idx[None, :] >= 0, log_d[:, np.maximum(idx, 0)], np.nan)
         cols.append(per_zone(vals))
+    
     if use_histavg:                           # the time-of-day average of the target bin; off by default
         cols.append(per_zone(np.log1p(histavg_for_bins(demand, times, train_end, target))))
     dow, tod = calendar_keys(times)
@@ -125,6 +168,19 @@ def gbm_features(demand, times, weather, train_end, anchors, h, zone_level, spat
                 cols.append(per_zone(neighbour[:, anchors - lag]))
     return np.column_stack(cols)
 
+
+'''
+Parameter	Meaning
+demand	Demand values for all zones over time, shaped [Z, T]
+times	Timestamps corresponding to the time intervals
+weather	Weather features for each time interval
+train_end	End of the training period
+anchors	Time indices for the prediction samples
+h	Forecast horizon
+zone_level	A feature describing each zone
+spatial	Optional matrices used to calculate neighboring-zone demand features
+use_histavg	Whether to include historical-average demand as an extra feature
+'''
 
 def gbm_predictions(demand, times, weather, train_end, train_anchors, test_anchors, horizons,
                     stride: int = 3, max_iter: int = 200, spatial=None,

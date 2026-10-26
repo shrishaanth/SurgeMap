@@ -8,6 +8,20 @@ import os
 from surgemap import paths
 
 
+'''
+out = [] — creates an empty list to store the cleaned points.
+for lon, lat in ring: — loops through each point, unpacking its longitude and latitude.
+round(lon, digits) — rounds longitude to the specified number of decimal places. The same happens to latitude.
+if not out — if no point has been added yet, accept the first point.
+point != out[-1] — otherwise, check whether the new point differs from the previous point.
+out.append(point) — add it only if it isn't a consecutive duplicate.
+return out — return the cleaned list.
+'''
+
+'''
+    overall this file is for cleaning the geodata and producing zone lookup table
+'''
+
 def compact_ring(ring, digits: int):
     out = []
     for lon, lat in ring:
@@ -26,6 +40,11 @@ def compact_geometry(geometry: dict, digits: int = 4) -> dict:
     return {"type": "MultiPolygon", "coordinates": rings}
 
 
+
+'''
+    takes the data , cleans it up , outputs the geojson , mapping of locations IDs to zone and boroughs
+
+'''
 def main() -> None:
     parser = argparse.ArgumentParser(description="Trim the NYC Open Data 'NYC Taxi Zones' GeoJSON for the app.")
     parser.add_argument("--raw", required=True, help="GeoJSON exported from NYC Open Data dataset 8meu-9t5y")

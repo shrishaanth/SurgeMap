@@ -11,6 +11,7 @@ from surgemap import paths
 from surgemap.data.preprocess import PICKUP, DROPOFF, PULOC, DOLOC, STEP, iter_chunks, row_validity
 
 
+
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--input", required=True)

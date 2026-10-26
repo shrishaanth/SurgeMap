@@ -15,22 +15,114 @@ from torch import nn
 SLOTS_PER_DAY = 288      # 5-minute bins
 
 
+'''
+    this function is for creating a adaptive adjacency matrix in addition to the fixed graph 
+    we already have from the traffic graph , the two inputs node_a and node_b are learned 
+    embeddings ,  they will look like , [ for zone1 [vector of values] , for zone 2[vector of values]]
+    with dimension [Z , length of embedding vector]
+    Transpose is taken so that each zone is compared with itself 
+    then softmax is used for normalization , dim = 1 makes the normalization happen along
+    columns (so , values along row sums to 1)
+    Intially the dims are node_a -> (Z , vl)  , node_b -> (Z , vl)
+    after matrix multiplication (Z , Z)
+    so the result is adjacency , which is then normalized with softmax
+'''
+
 def adaptive_adjacency(node_a: torch.Tensor, node_b: torch.Tensor) -> torch.Tensor:
     """A learned, row-normalised zone-to-zone weight matrix from two sets of node embeddings."""
     return torch.softmax(torch.relu(node_a @ node_b.T), dim=1)
+
+
+
+'''
+But the input x already contains calendar information encoded as sine and cosine values.
+This function converts those values back into understandable integer IDs.
+'''
 
 
 def calendar_slots(x: torch.Tensor) -> tuple:
     """Time-of-day slot (0..287) and weekday (0..6) of every step of a window, read back from the
     calendar channels 1-4 of the features (hour sin/cos, weekday sin/cos). x is [B, Z, W, F];
     the calendar is the same for every zone, so zone 0 is used. Returns two [B, W] tensors."""
-    cal = x[:, 0, :, 1:5]
+    cal = x[:, 0, :, 1:5]     # extract all the batches , only zone 0 (since time calender is the same for
+    # every zone) , 1:5 fetches the features 1 to 4 , that is time sine , time cos , weekday sin , weekday cos
+    # a single turn (whole) is 2pi
     turn = 2 * math.pi
+    # tan-1 that is atan gets the angle , then fraction of the angle is found by / by 2pi
+    # then to find the slots of the time of the day / weekdays, multiply by slots per day / week
     slot = torch.round(torch.atan2(cal[..., 0], cal[..., 1]) / turn * SLOTS_PER_DAY).long() % SLOTS_PER_DAY
     weekday = torch.round(torch.atan2(cal[..., 2], cal[..., 3]) / turn * 7).long() % 7
     return slot, weekday
+    # final array with dim [B , W] for each batch , time slot of the day (0 to 287) and weekslot of the week (0 to 6) 
+
+'''
+slot = tensor([
+    [0, 1, 2],
+    [10, 11, 12]
+])
+
+weekday = tensor([
+    [0, 0, 0],
+    [1, 1, 1]
+])
+This would mean the first example contains three consecutive slots starting at slot 0, all on weekday 0.
+The second contains slots 10, 11, and 12, all on weekday 1.
+'''
 
 
+
+
+
+
+
+
+
+'''
+    This class is for performing diffusion graph convolution. It allows each
+    zone to receive information from other zones using the graph supports
+    (adjacency matrices) provided to it.
+
+    The forward function takes two inputs:
+        x        -> the input feature tensor, with dimensions [B, C, Z, T]
+        supports -> a list of graph support matrices, each with dimensions [Z, Z]
+
+    Here:
+        B = batch size (number of examples processed together)
+        C = number of channels (feature representations)
+        Z = number of zones
+        T = number of time steps
+
+    Initially, terms = [x] stores the original input tensor. This is important
+    because the model uses both the original information and the information
+    obtained through graph propagation.
+
+    For each support matrix, hop is initialized with x. The inner loop then
+    applies graph propagation repeatedly, up to self.order times.
+
+    In each hop, torch.einsum("vw,bcwt->bcvt", support, hop) multiplies the
+    values of each source zone by its graph weights and sums them to calculate
+    updated values for each destination zone. The batch, channel, and time
+    dimensions remain unchanged, so the output shape is still [B, C, Z, T].
+
+    After each hop, the resulting tensor is appended to terms. Therefore,
+    terms contains the original input plus the propagated results from every
+    support matrix and every hop.
+
+    torch.cat(terms, dim=1) concatenates these tensors along the channel
+    dimension. If there are S support matrices and the propagation order is K,
+    the resulting channel count becomes C * (1 + S * K).
+
+    self.project is a 1x1 convolutional layer that combines the original and
+    propagated information and reduces the channel count back to C.
+
+    Finally, self.dropout applies dropout during training to help reduce
+    overfitting. The output retains the same overall shape as the input:
+    [B, C, Z, T].
+
+    In short, this class combines the original zone information with information
+    propagated through multiple graph hops, allowing the model to learn from
+    both nearby and more distant graph relationships.
+'''
 class DiffusionGraphConv(nn.Module):
     """Graph convolution on [B, C, Z, T]: for every support matrix, `order` successive hops."""
 
@@ -110,7 +202,8 @@ class GraphWaveNet(nn.Module):
             x = torch.cat([x, self.zone_identity.weight[None, :, None, :].expand(b, z, w, -1),
                            self.slot_identity(slot)[:, None].expand(b, z, w, -1),
                            self.weekday_identity(weekday)[:, None].expand(b, z, w, -1)], dim=-1)
-        h = self.input_proj(x.permute(0, 3, 1, 2))                 # [B, C, Z, W]
+        h = self.input_proj(x.permute(0, 3, 1, 2))                 # [B, C, Z, W] changes the order of 
+        # the dimensions
         skip = 0.0
         for i in range(len(self.dilations)):
             residual = h

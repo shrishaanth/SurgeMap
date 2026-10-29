@@ -92,9 +92,9 @@ def test_capture_share_is_zero_at_the_baseline_one_at_the_best_case():
 
 def test_study_rows_picks_dispatch_alone_at_theta_zero_and_the_policies_at_theta():
     summary = [{"policy": "none", "fleet": 100, "theta": 0.0, "v": 1}, {"policy": "none", "fleet": 200, "theta": 0.0, "v": 2},
-               {"policy": "stgnn_cal", "fleet": 100, "theta": 0.1, "v": 3}, {"policy": "stgnn_cal", "fleet": 100, "theta": 0.5, "v": 4},
+               {"policy": "stgnn", "fleet": 100, "theta": 0.1, "v": 3}, {"policy": "stgnn", "fleet": 100, "theta": 0.5, "v": 4},
                {"policy": "oracle", "fleet": 100, "theta": 0.1, "v": 5}]
     rows = study_rows(summary, 100, 0.1)
-    assert [rows[p]["v"] for p in ("none", "stgnn_cal", "oracle")] == [1, 3, 5]
+    assert [rows[p]["v"] for p in ("none", "stgnn", "oracle")] == [1, 3, 5]
     with pytest.raises(KeyError):
         study_rows(summary, 300, 0.1)

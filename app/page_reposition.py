@@ -9,7 +9,7 @@ import data
 from logic import capture_share, moves_to_arcs, study_rows
 
 WARMUP = 36
-COLORS = {"none": "#8A94A6", "stgnn_cal": "#14213D", "oracle": "#F5B700"}
+COLORS = {"none": "#8A94A6", "stgnn": "#14213D", "oracle": "#F5B700"}
 
 
 class Recorder:
@@ -25,13 +25,13 @@ class Recorder:
 
 
 def _bar(frame: pd.DataFrame, value: str, title: str, fmt: str) -> alt.Chart:
-    labels = [data.POLICY_LABELS[p] for p in ("none", "stgnn_cal", "oracle")]
+    labels = [data.POLICY_LABELS[p] for p in ("none", "stgnn", "oracle")]
     return (alt.Chart(frame).mark_bar()
             .encode(x=alt.X("Fleet:O", title="Fleet size (vehicles)", axis=alt.Axis(labelAngle=0)),
                     xOffset=alt.XOffset("Policy:N", sort=labels),
                     y=alt.Y(f"{value}:Q", title=title),
                     color=alt.Color("Policy:N", sort=labels, legend=alt.Legend(orient="top", title=None),
-                                    scale=alt.Scale(domain=labels, range=[COLORS[p] for p in ("none", "stgnn_cal", "oracle")])),
+                                    scale=alt.Scale(domain=labels, range=[COLORS[p] for p in ("none", "stgnn", "oracle")])),
                     tooltip=["Fleet", "Policy", alt.Tooltip(f"{value}:Q", format=fmt)])
             .properties(height=300))
 
@@ -44,7 +44,7 @@ def study_section() -> None:
     fleet = st.select_slider("Fleet size", options=fleets, value=result["config"]["sweep_fleet"],
                              format_func=lambda f: f"{f:,} vehicles")
     rows = study_rows(summary, fleet, theta)
-    base, model, best = rows["none"], rows["stgnn_cal"], rows["oracle"]
+    base, model, best = rows["none"], rows["stgnn"], rows["oracle"]
     share = capture_share(base["mean_wait_penalized"], model["mean_wait_penalized"], best["mean_wait_penalized"])
 
     c1, c2, c3, c4 = st.columns(4)
@@ -74,15 +74,15 @@ def study_section() -> None:
     with st.expander("Cost versus benefit: the full trade-off curve"):
         sweep_fleet = result["config"]["sweep_fleet"]
         sweep = pd.DataFrame(summary)
-        sweep = sweep[(sweep["fleet"] == sweep_fleet) & sweep["policy"].isin(["stgnn_cal", "oracle"])].copy()
+        sweep = sweep[(sweep["fleet"] == sweep_fleet) & sweep["policy"].isin(["stgnn", "oracle"])].copy()
         sweep["Policy"] = sweep["policy"].map(data.POLICY_LABELS)
         sweep["kmin"] = sweep["empty_minutes"] / 1e3
         line = (alt.Chart(sweep).mark_line(point=True)
                 .encode(x=alt.X("kmin:Q", title="Vehicle-minutes driving empty (thousands)", scale=alt.Scale(zero=False)),
                         y=alt.Y("mean_wait_penalized:Q", title="Mean rider wait (min)", scale=alt.Scale(zero=False)),
                         color=alt.Color("Policy:N", legend=alt.Legend(orient="top", title=None),
-                                        scale=alt.Scale(domain=[data.POLICY_LABELS["stgnn_cal"], data.POLICY_LABELS["oracle"]],
-                                                        range=[COLORS["stgnn_cal"], COLORS["oracle"]])),
+                                        scale=alt.Scale(domain=[data.POLICY_LABELS["stgnn"], data.POLICY_LABELS["oracle"]],
+                                                        range=[COLORS["stgnn"], COLORS["oracle"]])),
                         order="theta:Q",
                         tooltip=["Policy", alt.Tooltip("theta:Q", title="theta"), alt.Tooltip("kmin:Q", format=".0f"),
                                  alt.Tooltip("mean_wait_penalized:Q", format=".2f")]))

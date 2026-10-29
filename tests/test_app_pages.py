@@ -85,10 +85,10 @@ def test_the_repositioning_study_headline_is_a_valid_share():
     assert any(m.label == "Empty driving" for m in at.metric)             # the cost is shown, not hidden
 
 
-@pytest.mark.parametrize("policy", ["stgnn_cal", "oracle"])
+@pytest.mark.parametrize("policy", ["stgnn", "oracle"])
 def test_the_simulator_runs_for_each_policy(policy):
     at = open_page("reposition")
-    assert [b.value for b in at.selectbox][0] == "stgnn_cal"
+    assert [b.value for b in at.selectbox][0] == "stgnn"
     at.selectbox[0].select(policy)
     next(s for s in at.select_slider if s.label == "Simulated duration (hours)").set_value(1)
     at.button[0].click().run()
@@ -97,3 +97,8 @@ def test_the_simulator_runs_for_each_policy(policy):
     assert int(moved.value.replace(",", "")) > 0
     unserved = [m for m in at.metric if m.label == "Requests left unserved"][-1]
     assert 0 <= float(unserved.value.rstrip("%")) <= 100
+
+
+@pytest.mark.parametrize("name", PAGES)
+def test_no_page_mentions_calibration_the_model_is_shown_as_trained(name):
+    assert "calibrat" not in everything_shown(open_page(name)).lower()

@@ -17,7 +17,7 @@ def render() -> None:
              "earlier days only; errors below are in pickups per zone per 5-minute bin.")
 
     lead_key = data.FORECAST_MODEL if data.FORECAST_MODEL in metrics["models"] else "stgnn"
-    others = {m: v for m, v in metrics["models"].items() if m not in ("stgnn_cal", "stgnn")}
+    others = {m: v for m, v in metrics["models"].items() if m in data.BASELINES}
     if others:
         best_other = [min(v["rmse"][j] for v in others.values()) for j in range(len(horizons))]
         lead = metrics["models"][lead_key]["rmse"]
@@ -26,7 +26,8 @@ def render() -> None:
                    f"{min(gain):.1f}% to {max(gain):.1f}% lower than the best of the other methods.")
 
     rows = []
-    for model, v in metrics["models"].items():
+    for model in data.MODELS:
+        v = metrics["models"][model]
         for j, h in enumerate(horizons):
             rows.append({"Model": data.LABELS[model], "Horizon (min)": h * 5, "RMSE": v["rmse"][j],
                          "MAE": v["mae"][j], "Top-3 hit rate": v["top3_hit_rate"][j],
@@ -45,23 +46,18 @@ def render() -> None:
     st.subheader("RMSE by horizon")
     st.dataframe(pivot.round(3))
 
-    lead = "ST-GNN, calibrated" if "ST-GNN, calibrated" in pivot.index else "ST-GNN"
-    if {lead, "Persistence", "Ridge regression"} <= set(pivot.index):
+    lead = data.LABELS[data.FORECAST_MODEL]
+    if {lead, "Persistence", "Ridge regression", "Historical average", "Gradient boosting"} <= set(pivot.index):
         gain = pd.DataFrame({
-            "vs persistence": 100 * (1 - pivot.loc[lead] / pivot.loc["Persistence"]),
-            "vs ridge regression": 100 * (1 - pivot.loc[lead] / pivot.loc["Ridge regression"]),
+            "vs gradient boosting": 100 * (1 - pivot.loc[lead] / pivot.loc["Gradient boosting"]),
             "vs historical average": 100 * (1 - pivot.loc[lead] / pivot.loc["Historical average"]),
-            **({"vs gradient boosting, calibrated": 100 * (1 - pivot.loc[lead] / pivot.loc["Gradient boosting, calibrated"])}
-               if "Gradient boosting, calibrated" in pivot.index else {}),
-            **({"ST-GNN as trained vs gradient boosting as trained":
-                100 * (1 - pivot.loc["ST-GNN"] / pivot.loc["Gradient boosting"])}
-               if "Gradient boosting" in pivot.index else {}),
+            "vs ridge regression": 100 * (1 - pivot.loc[lead] / pivot.loc["Ridge regression"]),
+            "vs persistence": 100 * (1 - pivot.loc[lead] / pivot.loc["Persistence"]),
         }).T
         st.subheader(f"{lead}: RMSE reduction (%)")
         st.dataframe(gain.round(1))
-        st.caption("Positive means the ST-GNN is better. Calibrated models get the same two corrections fitted on the "
-                   "validation days: a per-zone bias correction and a blend with the time-of-day average. The "
-                   "ST-GNN leads gradient boosting both as trained (last row) and after calibration.")
+        st.caption("Positive means the ST-GNN is better. Every model is shown as trained, with no correction applied "
+                   "afterwards.")
 
     st.subheader("Hotspot ranking")
     st.dataframe(frame.pivot(index="Model", columns="Horizon (min)", values="Top-3 hit rate").round(3))

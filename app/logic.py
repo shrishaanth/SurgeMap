@@ -108,7 +108,7 @@ def capture_share(baseline: float, policy: float, best: float) -> float | None:
     return (baseline - policy) / gap
 
 
-def study_rows(summary: list[dict], fleet: int, theta: float, policies=("none", "stgnn_cal", "oracle")) -> dict:
+def study_rows(summary: list[dict], fleet: int, theta: float, policies=("none", "stgnn", "oracle")) -> dict:
     """The simulation-study row of each policy for one fleet size.
 
     Dispatch alone ("none") has no theta, so it is looked up at theta 0; the others at `theta`.

@@ -28,7 +28,7 @@ def render() -> None:
 
     fleet, theta = result["config"]["sweep_fleet"], result["config"]["theta"]
     rows = study_rows(result["summary"], fleet, theta)
-    base, model, top = rows["none"], rows["stgnn_cal"], rows["oracle"]
+    base, model, top = rows["none"], rows["stgnn"], rows["oracle"]
     share = capture_share(base["mean_wait_penalized"], model["mean_wait_penalized"], top["mean_wait_penalized"])
     r1, r2, r3 = st.columns(3)
     r1.metric(f"Requests left unserved ({fleet:,} vehicles)", f"{100 * model['unmet_rate']:.1f}%",

@@ -22,17 +22,14 @@ DATA_DIR = ROOT / "data" / "processed" / "january_2024"
 
 # The baselines are used for the accuracy comparison only. Every other page (forecast map, zone explorer,
 # hotspots, repositioning) shows the ST-GNN.
-FORECAST_MODEL = "stgnn_cal"
-BASELINES = ("gbm_cal", "gbm", "ridge", "persistence", "histavg")
-MODELS = ("stgnn_cal", "stgnn") + BASELINES
-LABELS = {"stgnn_cal": "ST-GNN, calibrated", "gbm_cal": "Gradient boosting, calibrated",
-          "stgnn": "ST-GNN", "gbm": "Gradient boosting",
-          "ridge": "Ridge regression", "persistence": "Persistence",
-          "histavg": "Historical average", "oracle": "Oracle (true demand)", "none": "Dispatch only"}
+FORECAST_MODEL = "stgnn"
+BASELINES = ("gbm", "ridge", "persistence", "histavg")
+MODELS = (FORECAST_MODEL,) + BASELINES
+LABELS = {"stgnn": "ST-GNN", "gbm": "Gradient boosting", "ridge": "Ridge regression",
+          "persistence": "Persistence", "histavg": "Historical average"}
 # Repositioning policies shown in the app: no repositioning, the ST-GNN forecast, and perfect knowledge.
-POLICIES = ("stgnn_cal", "oracle")
-POLICY_LABELS = {"none": "No repositioning", "stgnn_cal": "ST-GNN forecast",
-                 "oracle": "Perfect knowledge"}
+POLICIES = ("stgnn", "oracle")
+POLICY_LABELS = {"none": "No repositioning", "stgnn": "ST-GNN forecast", "oracle": "Perfect knowledge"}
 
 
 def require(path: Path, hint: str) -> None:
